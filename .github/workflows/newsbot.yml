@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.11']
+        python-version: ['3.10', '3.11']
 
     steps:
     - name: Checkout code
@@ -36,12 +36,10 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run linting
-      run: |
-        ruff check src/ tests/ main.py
+      run: make lint
 
     - name: Run tests
-      run: |
-        pytest -v --tb=short
+      run: pytest -q
 
   run:
     runs-on: ubuntu-latest
@@ -89,7 +87,7 @@ jobs:
       with:
         name: draft-${{ github.run_number }}
         path: |
-          draft.md
+          out/draft.md
           newsbot.log
         retention-days: 30
 

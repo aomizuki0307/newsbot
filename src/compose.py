@@ -1,6 +1,7 @@
 """Article composition module - creates unified article from summaries"""
 
 import logging
+from pathlib import Path
 from typing import Dict, List
 
 from src.summarize import LLMClient
@@ -60,7 +61,12 @@ def save_draft(article: str, output_file: str = "draft.md"):
         output_file: Output file path
     """
     try:
-        with open(output_file, 'w', encoding='utf-8') as f:
+        output_path = Path(output_file)
+        parent_dir = output_path.parent
+        if parent_dir and parent_dir != Path("."):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with output_path.open('w', encoding='utf-8') as f:
             f.write(article)
         logger.info(f"Draft saved to {output_file}")
     except IOError as e:

@@ -9,7 +9,9 @@ AI駆動型のRSS記事収集・要約・統合ツール。複数のRSSフィー
 - **記事生成**: 複数の要約を統合し、1200-1600字のMarkdown記事を生成
 - **WordPress連携**: WordPress REST APIで下書き投稿
 - **重複排除**: 24時間以内に処理した記事はスキップ（キャッシュ機能）
-- **エラーハンドリング**: 失敗時は`draft.md`にエラー情報を保存
+- **エラーハンドリング**: 失敗時は`out/draft.md`にエラー情報を保存
+- **セキュリティ/堅牢性**: HTTPS + allowlist による許可ドメイン制御、SSRF防止、LLM/WordPress API のリトライとコスト上限ガード
+- **可観測性**: JSONログをオプションで有効化し、処理件数・失敗件数・推定トークン・処理時間をメトリクスとして出力
 
 ## 必要要件
 
@@ -70,6 +72,14 @@ RSS_FEEDS=https://example.com/feed1.xml,https://example.com/feed2.xml
 
 # Cache duration in hours (default: 24)
 CACHE_DURATION_HOURS=24
+
+# Optional guardrails / observability
+MAX_ARTICLES_PER_RUN=0        # 0 = no limit
+MAX_TOKENS_PER_RUN=0          # 0 = no limit
+ALLOWLIST_PATH=config/allowlist.txt
+PROMPT_VARIANT=default
+JSON_LOGS=false
+DRAFT_PATH=out/draft.md
 ```
 
 #### WordPress アプリケーションパスワードの取得方法
@@ -97,7 +107,7 @@ python main.py
 1. RSSフィードから記事を収集
 2. 各記事を要約
 3. 統合記事を生成
-4. `draft.md`に保存
+4. `out/draft.md`に保存
 5. WordPress に下書き投稿（設定されている場合）
 
 ### テスト実行
@@ -139,6 +149,12 @@ make clean
 - `WORDPRESS_APP_PASSWORD`
 - `RSS_FEEDS`
 - `CACHE_DURATION_HOURS`
+- `MAX_ARTICLES_PER_RUN`
+- `MAX_TOKENS_PER_RUN`
+- `ALLOWLIST_PATH`
+- `PROMPT_VARIANT`
+- `JSON_LOGS`
+- `DRAFT_PATH`
 
 ## プロジェクト構成
 
@@ -186,7 +202,7 @@ LLM_PROVIDER=anthropic  # openai または anthropic
 
 ### 3. プロンプトのカスタマイズ
 
-`src/summarize.py`と`src/compose.py`のシステムプロンプトを編集して、出力スタイルを変更できます。
+`prompts/` ディレクトリ内の `summarize/`・`compose/` 配下テキストを編集して出力スタイルを変更できます。`PROMPT_VARIANT` を切り替えることでA/Bテストも可能です。
 
 ### 4. 記事抽出ロジックの改善
 
@@ -195,6 +211,13 @@ LLM_PROVIDER=anthropic  # openai または anthropic
 ### 5. 投稿先の追加
 
 `src/publish_wordpress.py`を参考に、他のCMS（はてなブログ、note等）への投稿機能を追加できます。
+
+## 運用メモ
+
+- 成功/失敗にかかわらず `out/draft.md` に最新のドラフトを保存します（CIではアーティファクトとして収集）。
+- `config/allowlist.txt` に許可ドメインを記述することで、HTTPSかつ許可済みドメインの記事のみ収集します。プライベート/ループバックIPへ解決されるURLは自動的に拒否されます。
+- `MAX_ARTICLES_PER_RUN` / `MAX_TOKENS_PER_RUN` で処理件数や推定トークン量に上限を設け、超過前に安全に停止します。
+- `JSON_LOGS=true` を設定すると構造化ログになり、実行終了時に処理件数・失敗件数・推定トークン・処理時間などのメトリクスを1行で確認できます。
 
 ## 注意事項
 

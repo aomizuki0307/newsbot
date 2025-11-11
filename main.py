@@ -3,9 +3,11 @@
 Main entry point for the newsbot application.
 """
 
+import json
 import logging
 import os
 import sys
+import time
 from typing import List
 
 from dotenv import load_dotenv
@@ -15,16 +17,49 @@ from src.compose import compose_article, save_draft
 from src.publish_wordpress import publish_to_wordpress
 from src.summarize import summarize_articles
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
+
+class JsonFormatter(logging.Formatter):
+    """Simple JSON formatter for structured logs."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, ensure_ascii=False)
+
+
+def configure_logging():
+    """Configure logging with optional JSON output."""
+    json_logs = os.getenv("JSON_LOGS", "false").lower() == "true"
+    formatter: logging.Formatter
+    if json_logs:
+        formatter = JsonFormatter()
+    else:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+    handlers = [
         logging.StreamHandler(),
         logging.FileHandler('newsbot.log', encoding='utf-8')
     ]
-)
 
+    root_logger = logging.getLogger()
+    root_logger.handlers = []
+    root_logger.setLevel(logging.INFO)
+
+    for handler in handlers:
+        handler.setFormatter(formatter)
+        root_logger.addHandler(handler)
+
+
+load_dotenv()
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +84,6 @@ def load_config():
     Returns:
         Dictionary with configuration values
     """
-    load_dotenv()
-
     config = {
         'llm_provider': os.getenv('LLM_PROVIDER', 'openai').lower(),
         'rss_feeds': os.getenv('RSS_FEEDS', '').split(','),
@@ -61,6 +94,7 @@ def load_config():
         'max_articles_per_run': _parse_positive_int('MAX_ARTICLES_PER_RUN'),
         'max_tokens_per_run': _parse_positive_int('MAX_TOKENS_PER_RUN'),
         'allowlist_path': os.getenv('ALLOWLIST_PATH', 'config/allowlist.txt'),
+        'draft_path': os.getenv('DRAFT_PATH', os.path.join('out', 'draft.md')),
     }
 
     # Validate required fields
@@ -92,15 +126,34 @@ def load_config():
     return config
 
 
+def _emit_metrics(metrics: dict, start_time: float):
+    """Log final metrics in a single structured line."""
+    metrics["duration_seconds"] = round(time.perf_counter() - start_time, 2)
+    logger.info("run_metrics=%s", json.dumps(metrics, ensure_ascii=False))
+
+
 def main():
     """Main execution flow"""
     logger.info("=" * 60)
     logger.info("newsbot starting")
     logger.info("=" * 60)
 
+    start_time = time.perf_counter()
+    metrics = {
+        "articles_collected": 0,
+        "articles_after_limit": 0,
+        "summaries_generated": 0,
+        "summaries_failed": 0,
+        "tokens_estimated": 0,
+        "token_limit_reached": False,
+        "wordpress_published": False,
+    }
+    draft_path = os.getenv('DRAFT_PATH', os.path.join('out', 'draft.md'))
+
     try:
         # Load configuration
         config = load_config()
+        draft_path = config['draft_path']
 
         # Initialize cache
         cache = ArticleCache(
@@ -115,9 +168,11 @@ def main():
             cache,
             allowlist_path=config['allowlist_path'],
         )
+        metrics["articles_collected"] = len(articles)
 
         if not articles:
             logger.info("No new articles to process. Exiting.")
+            _emit_metrics(metrics, start_time)
             return 0
 
         # Enforce article ceiling before expensive LLM calls
@@ -130,6 +185,7 @@ def main():
                 max_articles,
             )
             articles = articles[:max_articles]
+        metrics["articles_after_limit"] = len(articles)
 
         # Step 2: Summarize articles
         logger.info("Step 2: Summarizing articles")
@@ -139,9 +195,14 @@ def main():
             max_tokens=config.get('max_tokens_per_run'),
         )
         summaries = summary_result.summaries
+        metrics["summaries_generated"] = len(summaries)
+        metrics["summaries_failed"] = summary_result.failed
+        metrics["tokens_estimated"] = summary_result.estimated_tokens
+        metrics["token_limit_reached"] = summary_result.limit_reached
 
         if not summaries:
             logger.error("No summaries generated. Exiting.")
+            _emit_metrics(metrics, start_time)
             return 1
 
         if summary_result.failed:
@@ -155,8 +216,8 @@ def main():
         article = compose_article(summaries, provider=config['llm_provider'])
 
         # Step 4: Save draft locally
-        logger.info("Step 4: Saving draft to draft.md")
-        save_draft(article, output_file='draft.md')
+        logger.info("Step 4: Saving draft to %s", draft_path)
+        save_draft(article, output_file=draft_path)
 
         # Step 5: Publish to WordPress (if configured)
         if config['wp_url'] and config['wp_username'] and config['wp_password']:
@@ -168,29 +229,32 @@ def main():
                 wp_password=config['wp_password']
             )
             logger.info(f"Published to WordPress: {result['url']}")
+            metrics["wordpress_published"] = True
         else:
             logger.info("Step 5: WordPress not configured, skipping publish")
 
+        _emit_metrics(metrics, start_time)
         logger.info("=" * 60)
         logger.info("newsbot completed successfully")
         logger.info("=" * 60)
         return 0
 
-    except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Fatal error: {e}", exc_info=True)
 
-        # Try to save whatever we have as draft
-        try:
-            logger.info("Attempting to save partial draft")
-            error_msg = f"# エラーが発生しました\n\n```\n{str(e)}\n```\n\n処理を中断しました。"
-            save_draft(error_msg, output_file='draft.md')
-        except Exception as save_error:
-            logger.error(f"Failed to save error draft: {save_error}")
+            # Try to save whatever we have as draft
+            try:
+                logger.info("Attempting to save partial draft")
+                error_msg = f"# エラーが発生しました\n\n```\n{str(e)}\n```\n\n処理を中断しました。"
+                save_draft(error_msg, output_file=draft_path)
+            except Exception as save_error:
+                logger.error(f"Failed to save error draft: {save_error}")
 
-        logger.info("=" * 60)
-        logger.info("newsbot failed")
-        logger.info("=" * 60)
-        return 1
+            _emit_metrics(metrics, start_time)
+            logger.info("=" * 60)
+            logger.info("newsbot failed")
+            logger.info("=" * 60)
+            return 1
 
 
 if __name__ == "__main__":
