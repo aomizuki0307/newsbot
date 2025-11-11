@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import List
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -239,22 +239,22 @@ def main():
         logger.info("=" * 60)
         return 0
 
-        except Exception as e:
-            logger.error(f"Fatal error: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
 
-            # Try to save whatever we have as draft
-            try:
-                logger.info("Attempting to save partial draft")
-                error_msg = f"# エラーが発生しました\n\n```\n{str(e)}\n```\n\n処理を中断しました。"
-                save_draft(error_msg, output_file=draft_path)
-            except Exception as save_error:
-                logger.error(f"Failed to save error draft: {save_error}")
+        # Try to save whatever we have as draft
+        try:
+            logger.info("Attempting to save partial draft")
+            error_msg = f"# エラーが発生しました\n\n```\n{str(e)}\n```\n\n処理を中断しました。"
+            save_draft(error_msg, output_file=draft_path)
+        except Exception as save_error:
+            logger.error(f"Failed to save error draft: {save_error}")
 
-            _emit_metrics(metrics, start_time)
-            logger.info("=" * 60)
-            logger.info("newsbot failed")
-            logger.info("=" * 60)
-            return 1
+        _emit_metrics(metrics, start_time)
+        logger.info("=" * 60)
+        logger.info("newsbot failed")
+        logger.info("=" * 60)
+        return 1
 
 
 if __name__ == "__main__":
