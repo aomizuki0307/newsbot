@@ -1,13 +1,34 @@
 """Article summarization module using LLMs"""
 
+import asyncio
 import logging
 import os
-from typing import Dict, List
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 
 from anthropic import Anthropic
 from openai import OpenAI
 
+from .utils.retry import llm_retry
+
 logger = logging.getLogger(__name__)
+
+SUMMARY_CONCURRENCY = 5
+
+
+@dataclass
+class SummarizationResult:
+    """Container for summarize_articles outputs."""
+
+    summaries: List[Dict[str, Any]]
+    failed: int
+    estimated_tokens: int
+    skipped_due_to_budget: int = 0
+
+    @property
+    def limit_reached(self) -> bool:
+        return self.skipped_due_to_budget > 0
 
 
 class LLMClient:
@@ -25,6 +46,7 @@ class LLMClient:
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
+    @llm_retry()
     def generate(self, system: str, user: str, temperature: float = 0.7) -> str:
         """Generate text using the configured LLM
 
@@ -65,7 +87,7 @@ class LLMClient:
             raise
 
 
-def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[str, any]:
+def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[str, Any]:
     """Summarize a single article into 5 key points in Japanese
 
     Args:
@@ -119,26 +141,90 @@ def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[st
         raise
 
 
-def summarize_articles(articles: List[Dict[str, str]], provider: str = "openai") -> List[Dict[str, any]]:
-    """Summarize multiple articles
+def summarize_articles(
+    articles: List[Dict[str, str]],
+    provider: str = "openai",
+    max_tokens: Optional[int] = None,
+) -> SummarizationResult:
+    """Summarize multiple articles with concurrency and token budgeting."""
 
-    Args:
-        articles: List of article dictionaries
-        provider: LLM provider ('openai' or 'anthropic')
+    async def _run() -> SummarizationResult:
+        semaphore = asyncio.Semaphore(SUMMARY_CONCURRENCY)
+        llm_client = LLMClient(provider=provider)
+        scheduled_tasks = []
+        budget_used = 0
+        total_failed = 0
+        skipped_due_to_budget = 0
+        loop = asyncio.get_running_loop()
+        executor = ThreadPoolExecutor(max_workers=SUMMARY_CONCURRENCY)
 
-    Returns:
-        List of summary dictionaries
-    """
-    llm_client = LLMClient(provider=provider)
-    summaries = []
+        async def _summarize_with_limit(index: int, article: Dict[str, str]):
+            nonlocal total_failed
+            async with semaphore:
+                try:
+                    logger.info(
+                        "Summarizing article %s/%s: %s",
+                        index,
+                        len(articles),
+                        article.get("title", "")[:50],
+                    )
+                    return await loop.run_in_executor(
+                        executor,
+                        summarize_article,
+                        article,
+                        llm_client,
+                    )
+                except Exception as exc:
+                    total_failed += 1
+                    logger.error(
+                        "Skipping article %s due to summarization error: %s",
+                        article.get("url"),
+                        exc,
+                    )
+                    return None
 
-    for i, article in enumerate(articles, 1):
         try:
-            logger.info(f"Summarizing article {i}/{len(articles)}: {article['title'][:50]}")
-            summary = summarize_article(article, llm_client)
-            summaries.append(summary)
-        except Exception as e:
-            logger.error(f"Skipping article due to summarization error: {e}")
+            for i, article in enumerate(articles, 1):
+                estimated = _estimate_tokens_for_article(article.get("text", ""))
+                if max_tokens and (budget_used + estimated) > max_tokens:
+                    skipped_due_to_budget = len(articles) - (i - 1)
+                    logger.warning(
+                        "Token budget (%s) would be exceeded. Skipping remaining %s articles.",
+                        max_tokens,
+                        skipped_due_to_budget,
+                    )
+                    break
 
-    logger.info(f"Successfully summarized {len(summaries)}/{len(articles)} articles")
-    return summaries
+                budget_used += estimated
+                scheduled_tasks.append(_summarize_with_limit(i, article))
+
+            summaries: List[Dict[str, Any]] = []
+            if scheduled_tasks:
+                results = await asyncio.gather(*scheduled_tasks, return_exceptions=False)
+                summaries = [result for result in results if result]
+        finally:
+            executor.shutdown(wait=True, cancel_futures=False)
+
+        logger.info(
+            "Successfully summarized %s/%s articles (failed=%s, skipped=%s)",
+            len(summaries),
+            len(articles),
+            total_failed,
+            skipped_due_to_budget,
+        )
+
+        return SummarizationResult(
+            summaries=summaries,
+            failed=total_failed,
+            estimated_tokens=budget_used,
+            skipped_due_to_budget=skipped_due_to_budget,
+        )
+
+    return asyncio.run(_run())
+
+
+def _estimate_tokens_for_article(text: str) -> int:
+    """Rudimentary token estimate (~4 characters per token + response overhead)."""
+    if not text:
+        return 100
+    return max(100, len(text) // 4 + 200)

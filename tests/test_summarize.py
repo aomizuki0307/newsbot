@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from src.summarize import LLMClient, summarize_article
+from src.summarize import LLMClient, summarize_article, summarize_articles
 
 
 @pytest.fixture
@@ -132,3 +132,55 @@ def test_llm_client_invalid_provider_raises_error():
     """Test that LLMClient raises error for invalid provider"""
     with pytest.raises(ValueError, match="Unsupported LLM provider"):
         LLMClient(provider='invalid-provider')
+
+
+def test_summarize_articles_enforces_token_budget(monkeypatch):
+    """summarize_articles should stop scheduling when token budget is exceeded."""
+
+    class DummyClient:
+        def __init__(self, provider='openai'):
+            self.provider = provider
+
+    def fake_summarize(article, _client):
+        return {'title': article['title'], 'url': article['url'], 'summary': ['ok']}
+
+    monkeypatch.setattr('src.summarize.LLMClient', DummyClient)
+    monkeypatch.setattr('src.summarize.summarize_article', fake_summarize)
+
+    articles = [
+        {'title': f'Article {i}', 'url': f'https://example.com/{i}', 'text': 'x' * 800}
+        for i in range(3)
+    ]
+
+    result = summarize_articles(articles, provider='openai', max_tokens=600)
+
+    assert len(result.summaries) == 1
+    assert result.limit_reached
+    assert result.skipped_due_to_budget >= 2
+
+
+def test_summarize_articles_counts_failures(monkeypatch):
+    """summarize_articles should continue when individual articles fail."""
+
+    class DummyClient:
+        def __init__(self, provider='openai'):
+            self.provider = provider
+
+    def fake_summarize(article, _client):
+        if article['title'] == 'Bad':
+            raise ValueError("LLM error")
+        return {'title': article['title'], 'url': article['url'], 'summary': ['ok']}
+
+    monkeypatch.setattr('src.summarize.LLMClient', DummyClient)
+    monkeypatch.setattr('src.summarize.summarize_article', fake_summarize)
+
+    articles = [
+        {'title': 'Good', 'url': 'https://example.com/1', 'text': 'data' * 100},
+        {'title': 'Bad', 'url': 'https://example.com/2', 'text': 'data' * 100},
+        {'title': 'Good2', 'url': 'https://example.com/3', 'text': 'data' * 100},
+    ]
+
+    result = summarize_articles(articles, provider='openai')
+
+    assert len(result.summaries) == 2
+    assert result.failed == 1

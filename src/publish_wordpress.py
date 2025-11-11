@@ -2,9 +2,11 @@
 
 import base64
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 import requests
+
+from .utils.retry import wordpress_retry
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,8 @@ class WordPressPublisher:
             "Content-Type": "application/json"
         }
 
-    def publish_draft(self, title: str, content: str) -> Dict[str, any]:
+    @wordpress_retry()
+    def publish_draft(self, title: str, content: str) -> Dict[str, Any]:
         """Publish article as draft to WordPress
 
         Args:
@@ -75,7 +78,7 @@ class WordPressPublisher:
             raise
 
 
-def publish_to_wordpress(article: str, wp_url: str, wp_username: str, wp_password: str) -> Dict[str, any]:
+def publish_to_wordpress(article: str, wp_url: str, wp_username: str, wp_password: str) -> Dict[str, Any]:
     """Publish article to WordPress as draft
 
     Args:

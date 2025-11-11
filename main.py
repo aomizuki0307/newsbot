@@ -28,6 +28,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _parse_positive_int(env_name: str) -> Optional[int]:
+    """Return positive int or None for empty/zero env values."""
+    value = os.getenv(env_name)
+    if value is None:
+        return None
+    value = value.strip()
+    if not value or value == "0":
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be a positive integer") from exc
+    return parsed if parsed > 0 else None
+
+
 def load_config():
     """Load configuration from environment variables
 
@@ -43,6 +58,8 @@ def load_config():
         'wp_url': os.getenv('WORDPRESS_URL'),
         'wp_username': os.getenv('WORDPRESS_USERNAME'),
         'wp_password': os.getenv('WORDPRESS_APP_PASSWORD'),
+        'max_articles_per_run': _parse_positive_int('MAX_ARTICLES_PER_RUN'),
+        'max_tokens_per_run': _parse_positive_int('MAX_TOKENS_PER_RUN'),
     }
 
     # Validate required fields
@@ -98,13 +115,35 @@ def main():
             logger.info("No new articles to process. Exiting.")
             return 0
 
+        # Enforce article ceiling before expensive LLM calls
+        max_articles = config.get('max_articles_per_run')
+        if max_articles and len(articles) > max_articles:
+            logger.warning(
+                "MAX_ARTICLES_PER_RUN=%s enforced. Truncating from %s to %s articles.",
+                max_articles,
+                len(articles),
+                max_articles,
+            )
+            articles = articles[:max_articles]
+
         # Step 2: Summarize articles
         logger.info("Step 2: Summarizing articles")
-        summaries = summarize_articles(articles, provider=config['llm_provider'])
+        summary_result = summarize_articles(
+            articles,
+            provider=config['llm_provider'],
+            max_tokens=config.get('max_tokens_per_run'),
+        )
+        summaries = summary_result.summaries
 
         if not summaries:
             logger.error("No summaries generated. Exiting.")
             return 1
+
+        if summary_result.failed:
+            logger.warning("Summarization had %s failures.", summary_result.failed)
+
+        if summary_result.limit_reached:
+            logger.warning("Token budget reached during summarization; partial output will be used.")
 
         # Step 3: Compose unified article
         logger.info("Step 3: Composing unified article")
