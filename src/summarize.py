@@ -137,7 +137,9 @@ def summarize_articles(
 ) -> SummarizationResult:
     """Summarize multiple articles with concurrency and token budgeting."""
 
-    async def _run() -> SummarizationResult:
+    executor = ThreadPoolExecutor(max_workers=SUMMARY_CONCURRENCY)
+
+    async def _run(executor: ThreadPoolExecutor) -> SummarizationResult:
         semaphore = asyncio.Semaphore(SUMMARY_CONCURRENCY)
         llm_client = LLMClient(provider=provider)
         scheduled_tasks = []
@@ -145,7 +147,6 @@ def summarize_articles(
         total_failed = 0
         skipped_due_to_budget = 0
         loop = asyncio.get_running_loop()
-        executor = ThreadPoolExecutor(max_workers=SUMMARY_CONCURRENCY)
 
         async def _summarize_with_limit(index: int, article: Dict[str, str]):
             nonlocal total_failed
@@ -172,27 +173,24 @@ def summarize_articles(
                     )
                     return None
 
-        try:
-            for i, article in enumerate(articles, 1):
-                estimated = _estimate_tokens_for_article(article.get("text", ""))
-                if max_tokens and (budget_used + estimated) > max_tokens:
-                    skipped_due_to_budget = len(articles) - (i - 1)
-                    logger.warning(
-                        "Token budget (%s) would be exceeded. Skipping remaining %s articles.",
-                        max_tokens,
-                        skipped_due_to_budget,
-                    )
-                    break
+        for i, article in enumerate(articles, 1):
+            estimated = _estimate_tokens_for_article(article.get("text", ""))
+            if max_tokens and (budget_used + estimated) > max_tokens:
+                skipped_due_to_budget = len(articles) - (i - 1)
+                logger.warning(
+                    "Token budget (%s) would be exceeded. Skipping remaining %s articles.",
+                    max_tokens,
+                    skipped_due_to_budget,
+                )
+                break
 
-                budget_used += estimated
-                scheduled_tasks.append(_summarize_with_limit(i, article))
+            budget_used += estimated
+            scheduled_tasks.append(_summarize_with_limit(i, article))
 
-            summaries: List[Dict[str, Any]] = []
-            if scheduled_tasks:
-                results = await asyncio.gather(*scheduled_tasks, return_exceptions=False)
-                summaries = [result for result in results if result]
-        finally:
-            executor.shutdown(wait=True, cancel_futures=False)
+        summaries: List[Dict[str, Any]] = []
+        if scheduled_tasks:
+            results = await asyncio.gather(*scheduled_tasks, return_exceptions=False)
+            summaries = [result for result in results if result]
 
         logger.info(
             "Successfully summarized %s/%s articles (failed=%s, skipped=%s)",
@@ -209,7 +207,10 @@ def summarize_articles(
             skipped_due_to_budget=skipped_due_to_budget,
         )
 
-    return asyncio.run(_run())
+    try:
+        return asyncio.run(_run(executor))
+    finally:
+        executor.shutdown(wait=True, cancel_futures=False)
 
 
 def _estimate_tokens_for_article(text: str) -> int:
