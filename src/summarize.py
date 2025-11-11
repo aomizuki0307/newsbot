@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from anthropic import Anthropic
 from openai import OpenAI
 
+from .prompts import load_prompt, render_prompt
 from .utils.retry import llm_retry
 
 logger = logging.getLogger(__name__)
@@ -88,27 +89,15 @@ class LLMClient:
 
 
 def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[str, Any]:
-    """Summarize a single article into 5 key points in Japanese
-
-    Args:
-        article: Article dictionary with 'title', 'text', 'url'
-        llm_client: LLM client instance
-
-    Returns:
-        Dictionary with 'title', 'url', 'summary' (list of 5 points)
-    """
-    system_prompt = """あなたは日本語テックメディアの編集アシスタントです。
-技術記事を正確に要約し、重要なポイントを箇条書きで抽出します。
-事実に基づき、専門用語は適切に使用してください。"""
-
-    user_prompt = f"""以下の記事を日本語で5つの要点に要約してください。
-各要点は1文で簡潔に。数値、日付、固有名詞は正確に記載してください。
-
-タイトル: {article['title']}
-本文:
-{article['text'][:3000]}
-
-要約（5つの要点を箇条書きで）:"""
+    """Summarize a single article into 5 key points in Japanese."""
+    system_prompt = load_prompt("summarize/system")
+    user_template = load_prompt("summarize/user")
+    truncated_body = (article.get("text") or "")[:3000]
+    user_prompt = render_prompt(
+        user_template,
+        title=article.get("title", ""),
+        body=truncated_body,
+    )
 
     try:
         response = llm_client.generate(system_prompt, user_prompt)
