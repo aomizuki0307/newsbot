@@ -1,0 +1,1 @@
+"""newsbot test suite"""
