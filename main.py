@@ -60,6 +60,7 @@ def load_config():
         'wp_password': os.getenv('WORDPRESS_APP_PASSWORD'),
         'max_articles_per_run': _parse_positive_int('MAX_ARTICLES_PER_RUN'),
         'max_tokens_per_run': _parse_positive_int('MAX_TOKENS_PER_RUN'),
+        'allowlist_path': os.getenv('ALLOWLIST_PATH', 'config/allowlist.txt'),
     }
 
     # Validate required fields
@@ -109,7 +110,11 @@ def main():
 
         # Step 1: Collect articles from RSS feeds
         logger.info("Step 1: Collecting articles from RSS feeds")
-        articles = collect_articles(config['rss_feeds'], cache)
+        articles = collect_articles(
+            config['rss_feeds'],
+            cache,
+            allowlist_path=config['allowlist_path'],
+        )
 
         if not articles:
             logger.info("No new articles to process. Exiting.")

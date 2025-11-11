@@ -1,0 +1,3 @@
+# Domains that the collector is allowed to fetch article content from
+example.com
+tech.example.jp

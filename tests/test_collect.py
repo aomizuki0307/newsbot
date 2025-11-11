@@ -8,7 +8,13 @@ from datetime import datetime, timedelta
 import pytest
 from unittest.mock import Mock, patch
 
-from src.collect import ArticleCache, collect_rss_urls, extract_article_content
+from src.collect import (
+    ArticleCache,
+    collect_rss_urls,
+    extract_article_content,
+    load_allowlist,
+    validate_article_url,
+)
 
 
 @pytest.fixture
@@ -125,3 +131,57 @@ def test_extract_article_content_calls_download_and_parse(mock_article_class):
 
     mock_article.download.assert_called_once()
     mock_article.parse.assert_called_once()
+
+
+def test_load_allowlist_reads_domains(tmp_path):
+    """Allowlist loader should parse domains and ignore comments."""
+    allow_file = tmp_path / "allowlist.txt"
+    allow_file.write_text("# comment\nExample.com\nsub.domain.com\n")
+
+    domains = load_allowlist(str(allow_file))
+    assert domains == {"example.com", "sub.domain.com"}
+
+
+def test_validate_article_url_requires_https(monkeypatch):
+    """Validator should reject non-HTTPS URLs."""
+    monkeypatch.setattr('src.collect._host_addresses', lambda host: ['93.184.216.34'])
+    allowed, reason = validate_article_url("http://example.com/article", {"example.com"})
+
+    assert not allowed
+    assert reason == "non-https"
+
+
+def test_validate_article_url_allows_subdomains(monkeypatch):
+    """Subdomains of allowlisted domains should be accepted."""
+    monkeypatch.setattr('src.collect._host_addresses', lambda host: ['93.184.216.34'])
+    allowed, reason = validate_article_url("https://sub.example.com/post", {"example.com"})
+
+    assert allowed
+    assert reason == ""
+
+
+def test_validate_article_url_blocks_private_ip(monkeypatch):
+    """Resolver returning private IPs should be rejected."""
+    monkeypatch.setattr('src.collect._host_addresses', lambda host: ['10.0.0.5'])
+    allowed, reason = validate_article_url("https://example.com/post", {"example.com"})
+
+    assert not allowed
+    assert "forbidden-ip" in reason
+
+
+def test_validate_article_url_requires_allowlist(monkeypatch):
+    """Unknown domains should be filtered out."""
+    monkeypatch.setattr('src.collect._host_addresses', lambda host: ['93.184.216.34'])
+    allowed, reason = validate_article_url("https://unknown.com/post", {"example.com"})
+
+    assert not allowed
+    assert reason == "domain-not-allowlisted"
+
+
+def test_validate_article_url_handles_unresolved_hosts(monkeypatch):
+    """Unresolvable hosts should be skipped."""
+    monkeypatch.setattr('src.collect._host_addresses', lambda host: [])
+    allowed, reason = validate_article_url("https://example.com/post", {"example.com"})
+
+    assert not allowed
+    assert reason == "unresolved-host"

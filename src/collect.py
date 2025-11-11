@@ -1,10 +1,13 @@
 """RSS feed collection and article extraction module"""
 
+import ipaddress
 import json
 import logging
 import os
+import socket
 from datetime import datetime, timedelta
-from typing import Dict, List, Set
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
 from urllib.parse import urlparse
 
 import feedparser
@@ -12,6 +15,16 @@ import requests
 from newspaper import Article
 
 logger = logging.getLogger(__name__)
+
+
+PRIVATE_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+]
 
 
 class ArticleCache:
@@ -58,6 +71,78 @@ class ArticleCache:
         """Add URL to cache"""
         self.cache[url] = datetime.now().isoformat()
         self._save_cache()
+
+
+def load_allowlist(path: str) -> Set[str]:
+    """Load allowed domains from text file."""
+    allowlist_path = Path(path)
+    if not allowlist_path.exists():
+        raise FileNotFoundError(f"Allowlist not found: {path}")
+
+    domains: Set[str] = set()
+    with allowlist_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            domains.add(stripped.lower())
+
+    if not domains:
+        raise ValueError(f"Allowlist at {path} is empty.")
+    return domains
+
+
+def _normalize_domain(host: str) -> str:
+    return host.lower().strip(".") if host else ""
+
+
+def _domain_in_allowlist(domain: str, allowlist: Set[str]) -> bool:
+    return any(
+        domain == allowed or domain.endswith(f".{allowed}")
+        for allowed in allowlist
+    )
+
+
+def _is_public_ip(ip_str: str) -> bool:
+    ip_obj = ipaddress.ip_address(ip_str)
+    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_multicast:
+        return False
+    for network in PRIVATE_NETWORKS:
+        if ip_obj in network:
+            return False
+    return True
+
+
+def _host_addresses(hostname: str) -> List[str]:
+    try:
+        return list({info[4][0] for info in socket.getaddrinfo(hostname, None)})
+    except socket.gaierror as exc:
+        logger.warning("Failed to resolve %s: %s", hostname, exc)
+        return []
+
+
+def validate_article_url(url: str, allowlist: Set[str]) -> Tuple[bool, str]:
+    """Validate URL against HTTPS, allowlist, and SSRF safeguards."""
+    parsed = urlparse(url)
+    if parsed.scheme.lower() != "https":
+        return False, "non-https"
+
+    domain = _normalize_domain(parsed.hostname or "")
+    if not domain:
+        return False, "missing-host"
+
+    if not _domain_in_allowlist(domain, allowlist):
+        return False, "domain-not-allowlisted"
+
+    addresses = _host_addresses(domain)
+    if not addresses:
+        return False, "unresolved-host"
+
+    for ip_str in addresses:
+        if not _is_public_ip(ip_str):
+            return False, f"forbidden-ip:{ip_str}"
+
+    return True, ""
 
 
 def collect_rss_urls(rss_feeds: List[str]) -> List[str]:
@@ -117,12 +202,17 @@ def extract_article_content(url: str) -> Dict[str, str]:
         raise
 
 
-def collect_articles(rss_feeds: List[str], cache: ArticleCache) -> List[Dict[str, str]]:
-    """Collect and extract articles from RSS feeds with caching
+def collect_articles(
+    rss_feeds: List[str],
+    cache: ArticleCache,
+    allowlist_path: str = "config/allowlist.txt",
+) -> List[Dict[str, str]]:
+    """Collect and extract articles from RSS feeds with caching and security checks
 
     Args:
         rss_feeds: List of RSS feed URLs
         cache: ArticleCache instance for deduplication
+        allowlist_path: Path to file containing allowed domains
 
     Returns:
         List of article dictionaries
@@ -142,8 +232,26 @@ def collect_articles(rss_feeds: List[str], cache: ArticleCache) -> List[Dict[str
         logger.info("No new articles to process")
         return []
 
+    try:
+        allowed_domains = load_allowlist(allowlist_path)
+    except (FileNotFoundError, ValueError) as exc:
+        logger.error("Allowlist error: %s", exc)
+        raise
+
+    secure_urls = []
+    for candidate_url in new_urls:
+        allowed, reason = validate_article_url(candidate_url, allowed_domains)
+        if not allowed:
+            logger.info("Skipping URL due to %s: %s", reason, candidate_url)
+            continue
+        secure_urls.append(candidate_url)
+
+    if not secure_urls:
+        logger.info("No URLs passed security filters.")
+        return []
+
     articles = []
-    for url in new_urls:
+    for url in secure_urls:
         try:
             article = extract_article_content(url)
 
