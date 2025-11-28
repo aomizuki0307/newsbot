@@ -109,7 +109,7 @@ class WordPressPublisher:
                 tag_ids.append(tag_id)
         return tag_ids
 
-    def upload_media(self, image_data: BytesIO, filename: str, alt_text: str = "") -> Optional[int]:
+    def upload_media(self, image_data: BytesIO, filename: str, alt_text: str = "") -> Optional[tuple]:
         """Upload media to WordPress
 
         Args:
@@ -118,7 +118,7 @@ class WordPressPublisher:
             alt_text: Alternative text for the image
 
         Returns:
-            Media ID or None on failure
+            Tuple of (media_id, source_url) or None on failure
         """
         try:
             # Prepare headers for media upload
@@ -152,7 +152,8 @@ class WordPressPublisher:
             media = response.json()
 
             media_id = media["id"]
-            logger.info(f"Media uploaded successfully: ID={media_id}, URL={media['source_url']}")
+            source_url = media["source_url"]
+            logger.info(f"Media uploaded successfully: ID={media_id}, URL={source_url}")
 
             # Set alt text if provided
             if alt_text:
@@ -167,7 +168,7 @@ class WordPressPublisher:
                     timeout=10
                 )
 
-            return media_id
+            return (media_id, source_url)
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to upload media: {e}")
@@ -266,6 +267,7 @@ def publish_to_wordpress(article: str, wp_url: str, wp_username: str, wp_passwor
 
     # Fetch and upload featured image
     featured_media_id = None
+    image_url = None
     image_fetcher = UnsplashImageFetcher()
 
     if tags:
@@ -281,10 +283,24 @@ def publish_to_wordpress(article: str, wp_url: str, wp_username: str, wp_passwor
             filename = f"{search_query.replace(' ', '_')}.jpg"
             alt_text = f"{title} - Photo by {image_metadata['photographer']} on Unsplash"
 
-            featured_media_id = publisher.upload_media(image_file, filename, alt_text)
+            upload_result = publisher.upload_media(image_file, filename, alt_text)
 
-            if featured_media_id:
+            if upload_result:
+                featured_media_id, image_url = upload_result
                 logger.info(f"Featured image set: {image_metadata['photographer']} ({image_metadata['unsplash_url']})")
+
+                # Insert image into article content (after title)
+                image_credit = f"Photo by {image_metadata['photographer']} on Unsplash"
+                image_block = f'\n\n<!-- wp:image {{"id":{featured_media_id},"sizeSlug":"large","linkDestination":"none"}} -->\n<figure class="wp-block-image size-large"><img src="{image_url}" alt="{alt_text}" class="wp-image-{featured_media_id}"/><figcaption class="wp-element-caption">{image_credit}</figcaption></figure>\n<!-- /wp:image -->\n\n'
+
+                # Find first line break after title and insert image
+                lines = article.split('\n', 2)
+                if len(lines) >= 2:
+                    article = lines[0] + image_block + '\n'.join(lines[1:])
+                else:
+                    article = lines[0] + image_block
+
+                logger.info(f"Image embedded in article content")
         else:
             logger.warning("Failed to fetch featured image from Unsplash")
 
