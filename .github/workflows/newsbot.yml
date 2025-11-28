@@ -2,8 +2,8 @@ name: newsbot
 
 on:
   schedule:
-    # Run daily at 09:00 JST (00:00 UTC)
-    - cron: '0 0 * * *'
+    # Run daily at 18:00 JST (09:00 UTC)
+    - cron: '0 9 * * *'
   workflow_dispatch:
     # Allow manual trigger
   push:
@@ -73,8 +73,15 @@ jobs:
         WORDPRESS_URL=${{ secrets.WORDPRESS_URL }}
         WORDPRESS_USERNAME=${{ secrets.WORDPRESS_USERNAME }}
         WORDPRESS_APP_PASSWORD=${{ secrets.WORDPRESS_APP_PASSWORD }}
+        UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
         RSS_FEEDS=${{ secrets.RSS_FEEDS }}
         CACHE_DURATION_HOURS=${{ secrets.CACHE_DURATION_HOURS }}
+        MAX_ARTICLES_PER_RUN=${{ secrets.MAX_ARTICLES_PER_RUN }}
+        MAX_TOKENS_PER_RUN=${{ secrets.MAX_TOKENS_PER_RUN }}
+        ALLOWLIST_PATH=config/allowlist.txt
+        PROMPT_VARIANT=${{ secrets.PROMPT_VARIANT }}
+        JSON_LOGS=${{ secrets.JSON_LOGS }}
+        DRAFT_PATH=out/draft.md
         EOF
 
     - name: Run newsbot
