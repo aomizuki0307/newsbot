@@ -37,7 +37,8 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
 
     try:
         logger.info("Composing unified article from summaries")
-        article = llm_client.generate(system_prompt, user_prompt, temperature=0.7)
+        # Some models (e.g., certain Mini tiers) do not allow non-default temperature.
+        article = llm_client.generate(system_prompt, user_prompt, temperature=None)
 
         # Validate article length
         char_count = len(article)

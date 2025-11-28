@@ -183,17 +183,23 @@ def extract_article_content(url: str) -> Dict[str, str]:
         url: Article URL
 
     Returns:
-        Dictionary with 'url', 'title', 'text', 'publish_date'
+        Dictionary with 'url', 'title', 'text', 'summary', 'publish_date'
     """
     try:
         article = Article(url)
         article.download()
         article.parse()
+        # Some sites (e.g., NHK) return very short bodies via newspaper3k.
+        # Keep meta_description/summary as fallback so we don't drop the article.
+        summary = article.summary if hasattr(article, "summary") else None
+        if not summary and hasattr(article, "meta_description"):
+            summary = getattr(article, "meta_description")
 
         return {
             'url': url,
             'title': article.title,
             'text': article.text,
+            'summary': summary,
             'publish_date': str(article.publish_date) if article.publish_date else None,
         }
 
@@ -255,8 +261,13 @@ def collect_articles(
         try:
             article = extract_article_content(url)
 
+            # Choose best-available body text
+            body = article.get('text') or article.get('summary')
+
             # Basic validation
-            if article['text'] and len(article['text']) > 100:
+            if body and len(body) > 50:
+                # Store chosen body back into text field so downstream uses it
+                article['text'] = body
                 articles.append(article)
                 cache.add(url)
                 logger.info(f"Extracted article: {article['title'][:50]}")

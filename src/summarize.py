@@ -48,27 +48,29 @@ class LLMClient:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
     @llm_retry()
-    def generate(self, system: str, user: str, temperature: float = 0.7) -> str:
+    def generate(self, system: str, user: str, temperature: Optional[float] = None) -> str:
         """Generate text using the configured LLM
 
         Args:
             system: System prompt
             user: User prompt
-            temperature: Sampling temperature
+            temperature: Sampling temperature (None = API default)
 
         Returns:
             Generated text
         """
         try:
             if self.provider == "openai":
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
+                kwargs = {
+                    "model": self.model,
+                    "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user}
                     ],
-                    temperature=temperature
-                )
+                }
+                if temperature is not None:
+                    kwargs["temperature"] = temperature
+                response = self.client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content
 
             elif self.provider == "anthropic":
@@ -78,7 +80,7 @@ class LLMClient:
                     messages=[
                         {"role": "user", "content": user}
                     ],
-                    temperature=temperature,
+                    temperature=temperature if temperature is not None else 0.7,
                     max_tokens=2048
                 )
                 return response.content[0].text

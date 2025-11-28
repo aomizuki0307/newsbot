@@ -4,6 +4,7 @@
 # NHK関連
 nhk.or.jp
 www3.nhk.or.jp
+news.web.nhk
 
 # 政府・公的機関
 mhlw.go.jp
