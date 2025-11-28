@@ -27,16 +27,18 @@
      - スケジュール設定の説明を追加
      - Unsplash API Access Keyの取得方法を追加
 
-3. **画像対応（アイキャッチ）を実装** ✅
+3. **画像対応（アイキャッチ + 本文埋め込み）を実装** ✅
    - `src/utils/image_fetcher.py` を作成（Unsplash API連携）
    - `src/publish_wordpress.py` を更新
      - メディアアップロード機能を追加（`upload_media`）
      - アイキャッチ画像自動設定機能を追加
+     - **本文中への画像埋め込み機能を追加**（Gutenbergブロック形式）
      - タグから検索クエリを生成（日本語→英語変換）
+     - 撮影者クレジット自動表示（figcaption）
    - `.env.sample` と GitHub Actions ワークフローを更新
    - **修正：Content-Typeヘッダー追加**（WordPressメディアアップロードで必須）
    - **修正：openaiライブラリ1.12.0→2.8.1にアップグレード**（httpx 0.28.1との互換性）
-   - テスト実行成功: WP draft https://aaover60.com/?p=2281（画像ID=2280、アイキャッチ正常設定）
+   - テスト実行成功: WP draft https://aaover60.com/?p=2285（画像ID=2284、アイキャッチ + 本文埋め込み両方成功）
 
 4. **フィード拡充の準備** ✅
    - `docs/RECOMMENDED_RSS_FEEDS.md` を作成
