@@ -1,0 +1,42 @@
+aaover60 ニュース自動投稿セットアップ手順（2025-11-26）
+
+1) 事前に用意するもの（ユーザー作業）
+- OpenAI または Anthropic の API キー
+- aaover60.com の WordPress アカウントとアプリケーションパスワード（投稿権限のみの専用ユーザー推奨）
+- HTTPS の RSS フィード URL リスト（まずは5〜10本）。読者像に合う分野例: 健康、年金・マネー、地域防災、暮らしの知恵、趣味/カルチャー
+
+2) リポジトリ設定（ユーザー作業）
+- `projects/newsbot/.env.sample` を `.env` にコピーし、以下を埋める:
+  - LLM_PROVIDER=openai もしくは anthropic
+  - OPENAI_API_KEY または ANTHROPIC_API_KEY
+  - WORDPRESS_URL=https://aaover60.com
+  - WORDPRESS_USERNAME=<投稿用ユーザー>
+  - WORDPRESS_APP_PASSWORD=<アプリケーションパスワード>
+  - RSS_FEEDS=<カンマ区切りのフィードURL>
+- `config/allowlist.txt` にフィード配信ドメインを追加（例: `nhk.or.jp`）。サブドメインも許可されます。HTTPS以外は無効。
+
+3) 初回動作確認（ローカルで）
+- Python 3.11+ を用意し、推奨: 仮想環境を作成
+  - `cd projects/newsbot`
+  - `python -m venv .venv && source .venv/bin/activate`
+  - `pip install -r requirements.txt`
+- `.env` を設定した状態で `python main.py`
+  - 正常時: `out/draft.md` に記事、WordPress に下書きが作成
+  - 失敗時: `newsbot.log` と `out/draft.md` のエラーメッセージを確認
+
+4) 本番運用（GitHub Actions 使用）
+- リポジトリを GitHub へ push
+- Actions Secrets に `.env` 相当を登録（キー名は README の「GitHub Secrets」を参照）
+- 既定のスケジュールは毎日 09:00 JST。必要なら `.github/workflows/newsbot.yml` の cron を変更
+- コスト上限を設けたい場合は `.env` に `MAX_ARTICLES_PER_RUN` や `MAX_TOKENS_PER_RUN` を設定
+
+5) 運用ヒント
+- まとめトーンはシニア読者向けに調整済み（prompts/ 以下）。必要に応じて微調整可
+- 新しいフィードを追加したら、同じドメインを allowlist に追記する
+- キャッシュをリセットしたいときは `cache.json` を削除（同じ記事を再処理）
+- 投稿カテゴリやタグを固定したい場合は `src/publish_wordpress.py` の `post_data` に追加可能
+
+6) トラブルシュートの見方
+- `newsbot.log`: 全ステップのログ
+- `out/draft.md`: 生成記事またはエラーメモ
+- ネットワーク/ドメインで弾かれる場合: allowlist と HTTPS 化を再確認

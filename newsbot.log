@@ -1,0 +1,17 @@
+2025-11-28 18:16:47,634 - __main__ - INFO - ============================================================
+2025-11-28 18:16:47,634 - __main__ - INFO - newsbot starting
+2025-11-28 18:16:47,634 - __main__ - INFO - ============================================================
+2025-11-28 18:16:47,634 - __main__ - INFO - Configuration loaded: LLM=openai, RSS feeds=2, Cache=24h
+2025-11-28 18:16:47,634 - __main__ - INFO - Step 1: Collecting articles from RSS feeds
+2025-11-28 18:16:47,634 - src.collect - INFO - Fetching RSS feed: https://example.com/feed1.xml
+2025-11-28 18:16:48,437 - src.collect - WARNING - Feed parse warning for https://example.com/feed1.xml: <unknown>:2:0: syntax error
+2025-11-28 18:16:48,437 - src.collect - INFO - Found 0 entries in https://example.com/feed1.xml
+2025-11-28 18:16:48,437 - src.collect - INFO - Fetching RSS feed: https://example.com/feed2.xml
+2025-11-28 18:16:49,246 - src.collect - WARNING - Feed parse warning for https://example.com/feed2.xml: <unknown>:2:0: syntax error
+2025-11-28 18:16:49,247 - src.collect - INFO - Found 0 entries in https://example.com/feed2.xml
+2025-11-28 18:16:49,247 - src.collect - INFO - Collected 0 URLs from RSS feeds
+2025-11-28 18:16:49,247 - src.collect - INFO - Unique URLs: 0
+2025-11-28 18:16:49,247 - src.collect - INFO - New URLs (not cached): 0
+2025-11-28 18:16:49,247 - src.collect - INFO - No new articles to process
+2025-11-28 18:16:49,247 - __main__ - INFO - No new articles to process. Exiting.
+2025-11-28 18:16:49,247 - __main__ - INFO - run_metrics={"articles_collected": 0, "articles_after_limit": 0, "summaries_generated": 0, "summaries_failed": 0, "tokens_estimated": 0, "token_limit_reached": false, "wordpress_published": false, "duration_seconds": 1.61}
