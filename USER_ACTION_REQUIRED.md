@@ -110,7 +110,7 @@ git push origin main
 |---------|---|-------|
 | `LLM_PROVIDER` | `openai` | ⭐️⭐️⭐️ |
 | `OPENAI_API_KEY` | （.envの5行目の値） | ⭐️⭐️⭐️ |
-| `OPENAI_MODEL` | `gpt-4o-mini` | ⭐️⭐️⭐️ |
+| `OPENAI_MODEL` | `gpt-5-mini` | ⭐️⭐️⭐️ |
 | `WORDPRESS_URL` | `https://aaover60.com` | ⭐️⭐️⭐️ |
 | `WORDPRESS_USERNAME` | `newsbot` | ⭐️⭐️⭐️ |
 | `WORDPRESS_APP_PASSWORD` | （.envの15行目・スペース含む） | ⭐️⭐️⭐️ |
