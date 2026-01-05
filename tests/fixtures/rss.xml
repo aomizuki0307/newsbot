@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Sample Feed</title>
+    <link>https://example.com/</link>
+    <description>Test feed for smoke tests</description>
+    <item>
+      <title>Article One</title>
+      <link>https://example.com/article-1</link>
+    </item>
+    <item>
+      <title>Article Two</title>
+      <link>https://example.com/article-2</link>
+    </item>
+  </channel>
+</rss>

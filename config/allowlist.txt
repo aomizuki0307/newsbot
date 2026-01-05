@@ -1,0 +1,25 @@
+# Domains that the collector is allowed to fetch article content from
+# aaover60.com向けRSSフィード許可ドメイン
+
+# NHK関連
+nhk.or.jp
+www3.nhk.or.jp
+news.web.nhk
+
+# 政府・公的機関
+mhlw.go.jp
+go.jp
+
+# ニュースサイト
+news.yahoo.co.jp
+yahoo.co.jp
+
+# IT・テクノロジーメディア
+itmedia.co.jp
+japan.cnet.com
+watch.impress.co.jp
+webtan.impress.co.jp
+
+# 以下は例（削除可能）
+example.com
+tech.example.jp
