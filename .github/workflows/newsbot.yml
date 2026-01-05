@@ -40,6 +40,8 @@ jobs:
       continue-on-error: true
 
     - name: Run tests
+      env:
+        PYTHONPATH: .
       run: pytest -q
 
   run:
