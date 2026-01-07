@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from src.collect import ArticleCache, collect_articles
 from src.compose import compose_article, save_draft
+from src.publish_hatena import publish_to_hatena
 from src.publish_wordpress import publish_to_wordpress
 from src.summarize import summarize_articles
 
@@ -91,6 +92,14 @@ def load_config():
         'wp_url': os.getenv('WORDPRESS_URL'),
         'wp_username': os.getenv('WORDPRESS_USERNAME'),
         'wp_password': os.getenv('WORDPRESS_APP_PASSWORD'),
+        'publish_platform': os.getenv('PUBLISH_PLATFORM', 'wordpress').lower(),
+        'hatena_id': os.getenv('HATENA_ID'),
+        'hatena_blog_id': os.getenv('HATENA_BLOG_ID'),
+        'hatena_api_key': os.getenv('HATENA_API_KEY'),
+        'hatena_atom_endpoint': os.getenv('HATENA_ATOM_ENDPOINT'),
+        'hatena_categories': os.getenv('HATENA_CATEGORIES'),
+        'hatena_draft': os.getenv('HATENA_DRAFT'),
+        'hatena_content_type': os.getenv('HATENA_CONTENT_TYPE'),
         'max_articles_per_run': _parse_positive_int('MAX_ARTICLES_PER_RUN'),
         'max_tokens_per_run': _parse_positive_int('MAX_TOKENS_PER_RUN'),
         'allowlist_path': os.getenv('ALLOWLIST_PATH', 'config/allowlist.txt'),
@@ -147,6 +156,8 @@ def main():
         "tokens_estimated": 0,
         "token_limit_reached": False,
         "wordpress_published": False,
+        "hatena_published": False,
+        "publish_platform": None,
     }
     draft_path = os.getenv('DRAFT_PATH', os.path.join('out', 'draft.md'))
 
@@ -219,19 +230,47 @@ def main():
         logger.info("Step 4: Saving draft to %s", draft_path)
         save_draft(article, output_file=draft_path)
 
-        # Step 5: Publish to WordPress (if configured)
-        if config['wp_url'] and config['wp_username'] and config['wp_password']:
-            logger.info("Step 5: Publishing to WordPress")
-            result = publish_to_wordpress(
-                article,
-                wp_url=config['wp_url'],
-                wp_username=config['wp_username'],
-                wp_password=config['wp_password']
-            )
-            logger.info(f"Published to WordPress: {result['url']}")
-            metrics["wordpress_published"] = True
+        # Step 5: Publish to platform
+        publish_platform = config.get("publish_platform", "wordpress")
+        metrics["publish_platform"] = publish_platform
+
+        if publish_platform == "hatena":
+            if config["hatena_id"] and (config["hatena_api_key"] or config["hatena_atom_endpoint"]):
+                logger.info("Step 5: Publishing to Hatena Blog")
+                result = publish_to_hatena(
+                    article,
+                    hatena_id=config["hatena_id"],
+                    blog_id=config["hatena_blog_id"],
+                    api_key=config["hatena_api_key"],
+                    endpoint=config["hatena_atom_endpoint"],
+                    categories=config["hatena_categories"].split(",") if config["hatena_categories"] else None,
+                    draft=None
+                    if config["hatena_draft"] is None
+                    else str(config["hatena_draft"]).strip().lower() in {"1", "true", "yes", "on"},
+                    content_type=config["hatena_content_type"],
+                )
+                if result.get("url"):
+                    logger.info("Published to Hatena Blog: %s", result["url"])
+                else:
+                    logger.info("Published to Hatena Blog (URL not returned)")
+                metrics["hatena_published"] = True
+            else:
+                logger.info("Step 5: Hatena not configured, skipping publish")
+        elif publish_platform == "wordpress":
+            if config['wp_url'] and config['wp_username'] and config['wp_password']:
+                logger.info("Step 5: Publishing to WordPress")
+                result = publish_to_wordpress(
+                    article,
+                    wp_url=config['wp_url'],
+                    wp_username=config['wp_username'],
+                    wp_password=config['wp_password']
+                )
+                logger.info(f"Published to WordPress: {result['url']}")
+                metrics["wordpress_published"] = True
+            else:
+                logger.info("Step 5: WordPress not configured, skipping publish")
         else:
-            logger.info("Step 5: WordPress not configured, skipping publish")
+            logger.warning("Step 5: Unknown PUBLISH_PLATFORM=%s, skipping publish", publish_platform)
 
         _emit_metrics(metrics, start_time)
         logger.info("=" * 60)
