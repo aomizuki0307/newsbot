@@ -98,7 +98,11 @@ def publish_to_hatena(
     blog_id = blog_id or os.getenv("HATENA_BLOG_ID")
     api_key = api_key or os.getenv("HATENA_API_KEY")
     endpoint = endpoint or os.getenv("HATENA_ATOM_ENDPOINT")
-    content_type = content_type or os.getenv("HATENA_CONTENT_TYPE", "text/x-markdown")
+    if content_type is None:
+        content_type = os.getenv("HATENA_CONTENT_TYPE")
+    content_type = (content_type or "").strip()
+    if not content_type:
+        content_type = "text/x-markdown"
 
     if not endpoint:
         if not hatena_id or not blog_id:
