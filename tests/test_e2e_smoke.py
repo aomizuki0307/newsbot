@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
-import pytest
 import responses
 
 from src.collect import ArticleCache, collect_articles

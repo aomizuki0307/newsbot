@@ -11,7 +11,6 @@ from typing import Dict, List, Set, Tuple
 from urllib.parse import urlparse
 
 import feedparser
-import requests
 from newspaper import Article
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,5 @@
 """Tests for article collection module"""
 
-import json
 import os
 import tempfile
 from datetime import datetime, timedelta

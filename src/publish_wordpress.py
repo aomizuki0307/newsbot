@@ -300,7 +300,7 @@ def publish_to_wordpress(article: str, wp_url: str, wp_username: str, wp_passwor
                 else:
                     article = lines[0] + image_block
 
-                logger.info(f"Image embedded in article content")
+                logger.info("Image embedded in article content")
         else:
             logger.warning("Failed to fetch featured image from Unsplash")
 

@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import List, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 
