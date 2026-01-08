@@ -20,6 +20,10 @@ japan.cnet.com
 watch.impress.co.jp
 webtan.impress.co.jp
 
+# デザイン・Web制作メディア（SEO/Canvaプロファイル用）
+coliss.com
+photoshopvip.net
+
 # 以下は例（削除可能）
 example.com
 tech.example.jp
