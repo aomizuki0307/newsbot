@@ -9,6 +9,11 @@ from typing import Iterable, Optional
 
 import requests
 
+from src.utils.categorizer import ArticleCategorizer
+from src.utils.image_fetcher import UnsplashImageFetcher, translate_keywords_for_search
+from src.utils.hatena_fotolife import HatenaFotolifeUploader
+from src.utils.title_extractor import extract_title
+
 logger = logging.getLogger(__name__)
 
 NS_ATOM = "http://www.w3.org/2005/Atom"
@@ -118,6 +123,10 @@ def publish_to_hatena(
     if draft is None:
         draft = _bool_from_env(os.getenv("HATENA_DRAFT"))
 
+    # Extract title from article content if not provided
+    if title is None:
+        title = extract_title(article, default="newsbot")
+
     publish_title = title or os.getenv("HATENA_TITLE") or "newsbot"
 
     payload = _build_atom_entry(
@@ -142,3 +151,105 @@ def publish_to_hatena(
 
     url = _extract_entry_url(response.text)
     return {"url": url, "response": response.text}
+
+
+def publish_to_hatena_with_image(
+    article: str,
+    *,
+    title: Optional[str] = None,
+    hatena_id: Optional[str] = None,
+    blog_id: Optional[str] = None,
+    api_key: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    categories: Optional[Iterable[str]] = None,
+    draft: Optional[bool] = None,
+    content_type: Optional[str] = None,
+    timeout: int = 30,
+) -> dict:
+    """Publish article to Hatena Blog with automatic title extraction and featured image
+
+    This is the enhanced version that:
+    1. Extracts title from article content if not provided
+    2. Categorizes article to get tags
+    3. Fetches image from Unsplash based on tags
+    4. Uploads image to Hatena Fotolife
+    5. Embeds image in article
+    6. Publishes to Hatena Blog
+
+    Args:
+        article: Article content (HTML or Markdown)
+        (other parameters same as publish_to_hatena)
+
+    Returns:
+        Dictionary with published URL and response
+    """
+    # Extract title if not provided
+    if title is None:
+        title = extract_title(article, default="newsbot")
+
+    logger.info(f"Publishing to Hatena with title: {title}")
+
+    # Categorize article to get tags for image search
+    categorizer = ArticleCategorizer()
+    _, tags = categorizer.categorize(title, article)
+
+    article_with_image = article
+
+    # Fetch and upload featured image
+    if tags:
+        search_query = translate_keywords_for_search(tags)
+        logger.info(f"Searching for featured image with query: {search_query}")
+
+        image_fetcher = UnsplashImageFetcher()
+        result = image_fetcher.search_and_download(search_query)
+
+        if result:
+            image_file, image_metadata = result
+
+            # Upload to Hatena Fotolife
+            fotolife = HatenaFotolifeUploader()
+            filename = f"{search_query.replace(' ', '_')}.jpg"
+
+            image_syntax = fotolife.upload_image(
+                image_file,
+                filename,
+                title=f"{title} - Featured Image"
+            )
+
+            if image_syntax:
+                logger.info(f"Featured image uploaded: {image_metadata['photographer']}")
+
+                # Embed image in article (Hatena syntax)
+                # Insert after first heading or at the beginning
+                image_credit = f"\n\n{image_syntax}\n\n*Photo by {image_metadata['photographer']} on Unsplash*\n\n"
+
+                # Find insertion point (after first <h2> or at start)
+                if '<h2>' in article:
+                    # Insert after first </h2>
+                    parts = article.split('</h2>', 1)
+                    article_with_image = parts[0] + '</h2>' + image_credit + (parts[1] if len(parts) > 1 else '')
+                else:
+                    # Insert at beginning
+                    article_with_image = image_credit + article
+
+                logger.info("Image embedded in article content")
+            else:
+                logger.warning("Failed to upload image to Fotolife")
+        else:
+            logger.warning("Failed to fetch featured image from Unsplash")
+    else:
+        logger.info("No tags found for image search, skipping featured image")
+
+    # Publish to Hatena Blog
+    return publish_to_hatena(
+        article_with_image,
+        title=title,
+        hatena_id=hatena_id,
+        blog_id=blog_id,
+        api_key=api_key,
+        endpoint=endpoint,
+        categories=categories,
+        draft=draft,
+        content_type=content_type,
+        timeout=timeout,
+    )

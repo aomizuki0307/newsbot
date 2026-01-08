@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from src.collect import ArticleCache, collect_articles
 from src.compose import compose_article, save_draft
-from src.publish_hatena import publish_to_hatena
+from src.publish_hatena import publish_to_hatena_with_image
 from src.publish_wordpress import publish_to_wordpress
 from src.summarize import summarize_articles
 
@@ -236,8 +236,8 @@ def main():
 
         if publish_platform == "hatena":
             if config["hatena_id"] and (config["hatena_api_key"] or config["hatena_atom_endpoint"]):
-                logger.info("Step 5: Publishing to Hatena Blog")
-                result = publish_to_hatena(
+                logger.info("Step 5: Publishing to Hatena Blog with featured image")
+                result = publish_to_hatena_with_image(
                     article,
                     hatena_id=config["hatena_id"],
                     blog_id=config["hatena_blog_id"],
