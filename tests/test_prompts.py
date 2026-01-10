@@ -16,9 +16,9 @@ def clear_prompt_cache():
 def test_load_prompt_reads_default_variant(tmp_path, monkeypatch):
     """load_prompt should read files relative to PROMPTS_ROOT."""
     monkeypatch.setattr(prompts, "PROMPTS_ROOT", tmp_path)
-    target = tmp_path / "summarize" / "system"
+    target = tmp_path / "default"
     target.mkdir(parents=True)
-    (target / "default.txt").write_text("system prompt", encoding="utf-8")
+    (target / "default_summarize_system.txt").write_text("system prompt", encoding="utf-8")
 
     result = prompts.load_prompt("summarize/system")
     assert result == "system prompt"
@@ -28,9 +28,9 @@ def test_load_prompt_falls_back_to_default(monkeypatch, tmp_path):
     """Missing variant should fall back to default text."""
     monkeypatch.setattr(prompts, "PROMPTS_ROOT", tmp_path)
     monkeypatch.setenv("PROMPT_VARIANT", "beta")
-    target = tmp_path / "compose" / "user"
+    target = tmp_path / "default"
     target.mkdir(parents=True)
-    (target / "default.txt").write_text("default prompt", encoding="utf-8")
+    (target / "default_compose_user.txt").write_text("default prompt", encoding="utf-8")
 
     result = prompts.load_prompt("compose/user")
     assert result == "default prompt"
