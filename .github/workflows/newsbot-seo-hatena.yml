@@ -74,6 +74,25 @@ jobs:
         KEYWORD_CONFIG_PATH=${{ secrets.KEYWORD_CONFIG_PATH || 'config/category_keywords.json' }}
         JSON_LOGS=${{ secrets.JSON_LOGS }}
         DRAFT_PATH=out/draft.md
+        REVENUE_MODEL=${{ secrets.REVENUE_MODEL }}
+        FUNNEL_STAGE=${{ secrets.FUNNEL_STAGE }}
+        PRIMARY_QUERY=${{ secrets.PRIMARY_QUERY }}
+        RELATED_QUERIES=${{ secrets.RELATED_QUERIES }}
+        TARGET_READER=${{ secrets.TARGET_READER }}
+        GOAL_ACTION=${{ secrets.GOAL_ACTION }}
+        PR_DISCLOSURE=${{ secrets.PR_DISCLOSURE }}
+        FIRST_PARTY_INFO=${{ secrets.FIRST_PARTY_INFO }}
+        EXISTING_URLS=${{ secrets.EXISTING_URLS }}
+        AFFILIATE_CATEGORIES=${{ secrets.AFFILIATE_CATEGORIES }}
+        TITLE_HINT=${{ secrets.TITLE_HINT }}
+        CTA_WEAK_TEXT=${{ secrets.CTA_WEAK_TEXT }}
+        CTA_WEAK_URL=${{ secrets.CTA_WEAK_URL }}
+        CTA_STRONG_TEXT=${{ secrets.CTA_STRONG_TEXT }}
+        CTA_STRONG_URL=${{ secrets.CTA_STRONG_URL }}
+        INTERNAL_LINKS=${{ secrets.INTERNAL_LINKS }}
+        PLAN_ENABLED=${{ secrets.PLAN_ENABLED }}
+        FINAL_CHECK_ENABLED=${{ secrets.FINAL_CHECK_ENABLED }}
+        FINAL_CHECK_PATH=${{ secrets.FINAL_CHECK_PATH || 'out/final_check.md' }}
         EOF
 
     - name: Run newsbot (seo profile)
