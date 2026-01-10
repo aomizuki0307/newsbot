@@ -8,6 +8,7 @@ tenacity==8.2.3
 openai>=1.13.0
 anthropic==0.18.1
 httpx>=0.27.0
+markdown==3.6
 pytest==8.0.0
 pytest-mock==3.12.0
 responses==0.25.3
