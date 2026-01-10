@@ -8,7 +8,7 @@ from typing import List
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?])")
 _LIST_PREFIX_RE = re.compile(r"^(?:[-*+]\s+|\d+\.|\d+\))")
-_SECTION_LABELS = {"導入", "本論", "まとめ", "はじめに", "結論"}
+_SECTION_LABELS = {"導入", "本論", "まとめ", "はじめに", "結論", "目次"}
 _NUMBERED_HEADING_RE = re.compile(r"^\d+[.)]\s+\S")
 _HORIZONTAL_RULE_RE = re.compile(r"^\s*([-*_])\1\1+\s*$")
 _CHECKLIST_INLINE_RE = re.compile(r"(.*?チェックリスト[^-]*)(-\s*\[\s*\].*)")

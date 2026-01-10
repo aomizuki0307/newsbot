@@ -70,9 +70,9 @@ def _insert_series_links(article: str) -> str:
 
     block_lines = ["> 次に読む"]
     if url_a:
-        block_lines.append(f"> - {label_a}：{url_a}")
+        block_lines.append(f"> {label_a}：{url_a}")
     if url_b:
-        block_lines.append(f"> - {label_b}：{url_b}")
+        block_lines.append(f"> {label_b}：{url_b}")
     block_lines.append("")
 
     lines = article.splitlines()
