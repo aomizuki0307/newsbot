@@ -64,6 +64,7 @@ def _build_atom_entry(
 
     content_el = ET.SubElement(entry, ET.QName(NS_ATOM, "content"))
     content_el.set("type", content_type)
+    content_el.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
     content_el.text = content
 
     for category in categories:
@@ -131,6 +132,9 @@ def publish_to_hatena(
 
     if draft is None:
         draft = _bool_from_env(os.getenv("HATENA_DRAFT"))
+
+    if article:
+        article = article.replace("\r\n", "\n").replace("\r", "\n")
 
     format_paragraphs = _bool_from_env(os.getenv("HATENA_FORMAT_PARAGRAPHS", "true"))
     if format_paragraphs:
