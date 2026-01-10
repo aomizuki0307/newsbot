@@ -3,7 +3,7 @@
 import pytest
 import requests
 from io import BytesIO
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from src.utils.hatena_fotolife import HatenaFotolifeUploader
 
 

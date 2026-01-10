@@ -1,6 +1,5 @@
 """Tests for title extraction utilities"""
 
-import pytest
 from src.utils.title_extractor import (
     extract_title_from_html,
     extract_title_from_markdown,

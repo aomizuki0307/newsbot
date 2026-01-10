@@ -1,7 +1,6 @@
 """Title extraction utility for articles"""
 
 import logging
-import re
 from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
