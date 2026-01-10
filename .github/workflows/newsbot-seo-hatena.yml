@@ -60,6 +60,8 @@ jobs:
         HATENA_IMAGE_STRICT=${{ secrets.HATENA_IMAGE_STRICT }}
         HATENA_ATOM_ENDPOINT=${{ secrets.HATENA_ATOM_ENDPOINT }}
         HATENA_CONTENT_TYPE=${{ secrets.HATENA_CONTENT_TYPE || 'text/x-markdown' }}
+        HATENA_FORMAT_PARAGRAPHS=${{ secrets.HATENA_FORMAT_PARAGRAPHS || 'true' }}
+        HATENA_PARAGRAPH_SENTENCES=${{ secrets.HATENA_PARAGRAPH_SENTENCES || '2' }}
         HATENA_CATEGORIES=${{ secrets.HATENA_CATEGORIES }}
         UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
         RSS_FEEDS=${{ secrets.RSS_FEEDS }}

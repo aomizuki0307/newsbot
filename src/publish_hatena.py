@@ -13,6 +13,7 @@ from src.utils.categorizer import ArticleCategorizer
 from src.utils.image_fetcher import UnsplashImageFetcher, translate_keywords_for_search
 from src.utils.hatena_fotolife import HatenaFotolifeUploader
 from src.utils.title_extractor import extract_title
+from src.utils.text_formatting import format_markdown_paragraphs
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +123,14 @@ def publish_to_hatena(
 
     if draft is None:
         draft = _bool_from_env(os.getenv("HATENA_DRAFT"))
+
+    if _bool_from_env(os.getenv("HATENA_FORMAT_PARAGRAPHS")):
+        try:
+            sentences = int(os.getenv("HATENA_PARAGRAPH_SENTENCES", "2") or "2")
+        except ValueError:
+            sentences = 2
+        if content_type.lower().startswith("text/x-markdown") or content_type.lower().startswith("text/markdown"):
+            article = format_markdown_paragraphs(article, sentences_per_paragraph=sentences)
 
     # Extract title from article content if not provided
     if title is None:
