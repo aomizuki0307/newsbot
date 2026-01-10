@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from typing import Iterable, Optional
 
 import requests
@@ -22,6 +23,13 @@ NS_APP = "http://www.w3.org/2007/app"
 
 ET.register_namespace("", NS_ATOM)
 ET.register_namespace("app", NS_APP)
+
+_GENERIC_TITLES = {"導入", "本論", "まとめ", "はじめに", "結論"}
+
+
+def _default_title() -> str:
+    now_jst = datetime.utcnow() + timedelta(hours=9)
+    return f"ニュースまとめ（{now_jst:%Y-%m-%d}）"
 
 
 def _bool_from_env(value: Optional[str]) -> bool:
@@ -124,19 +132,24 @@ def publish_to_hatena(
     if draft is None:
         draft = _bool_from_env(os.getenv("HATENA_DRAFT"))
 
-    if _bool_from_env(os.getenv("HATENA_FORMAT_PARAGRAPHS")):
+    format_paragraphs = _bool_from_env(os.getenv("HATENA_FORMAT_PARAGRAPHS", "true"))
+    if format_paragraphs:
         try:
             sentences = int(os.getenv("HATENA_PARAGRAPH_SENTENCES", "2") or "2")
         except ValueError:
             sentences = 2
         if content_type.lower().startswith("text/x-markdown") or content_type.lower().startswith("text/markdown"):
             article = format_markdown_paragraphs(article, sentences_per_paragraph=sentences)
+            logger.info("Applied markdown paragraph formatting: %s sentences/paragraph", sentences)
 
     # Extract title from article content if not provided
     if title is None:
         title = extract_title(article, default="newsbot")
+    if title and title.strip() in _GENERIC_TITLES:
+        logger.warning("Extracted generic title '%s'; using fallback.", title)
+        title = None
 
-    publish_title = title or os.getenv("HATENA_TITLE") or "newsbot"
+    publish_title = title or os.getenv("HATENA_TITLE") or _default_title()
 
     payload = _build_atom_entry(
         publish_title,
@@ -195,6 +208,9 @@ def publish_to_hatena_with_image(
     # Extract title if not provided
     if title is None:
         title = extract_title(article, default="newsbot")
+    if title and title.strip() in _GENERIC_TITLES:
+        logger.warning("Extracted generic title '%s'; using fallback.", title)
+        title = _default_title()
 
     logger.info(f"Publishing to Hatena with title: {title}")
 
