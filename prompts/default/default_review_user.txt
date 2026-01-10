@@ -1,0 +1,12 @@
+Input:
+- Draft: {article}
+- Primary query: {primary_query}
+- Revenue model: {revenue_model}
+- Goal action: {goal_action}
+
+Output:
+1) Top 5 fixes (reason + concrete edit)
+2) 3 alternative titles (no hype)
+3) 2 CTA variants (soft/strong)
+4) Internal link ideas
+5) Fact-check list (with source type)

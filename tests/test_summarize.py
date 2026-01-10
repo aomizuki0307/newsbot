@@ -44,12 +44,12 @@ def test_summarize_article_returns_correct_structure(mock_llm_client, sample_art
     assert isinstance(result['summary'], list)
 
 
-def test_summarize_article_extracts_five_points(mock_llm_client, sample_article):
-    """Test that summarize_article extracts exactly 5 summary points"""
+def test_summarize_article_extracts_points(mock_llm_client, sample_article):
+    """Test that summarize_article extracts summary points"""
     result = summarize_article(sample_article, mock_llm_client)
 
-    # Should have 5 points
-    assert len(result['summary']) == 5
+    # Should have at least one point
+    assert len(result['summary']) > 0
 
     # Each point should be a non-empty string
     for point in result['summary']:
@@ -83,7 +83,7 @@ def test_summarize_article_calls_llm_with_correct_prompts(mock_llm_client, sampl
 
     # Verify user prompt contains article info
     assert sample_article['title'] in user_prompt
-    assert '5つ' in user_prompt or '5' in user_prompt
+    assert '箇条書き' in user_prompt or '要点' in user_prompt
 
 
 def test_summarize_article_handles_malformed_response(sample_article):

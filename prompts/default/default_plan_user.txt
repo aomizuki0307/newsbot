@@ -1,0 +1,20 @@
+Inputs:
+- Revenue model: {revenue_model}
+- Theme candidates:
+{theme_candidates}
+- Target reader: {target_reader}
+- First-party info: {first_party_info}
+- Existing URLs: {existing_urls}
+- Affiliate categories: {affiliate_categories}
+
+Summaries:
+{summaries}
+
+Output:
+1) Primary query + 5 related queries
+2) Search intent and next action
+3) Differentiation core
+4) H2 outline (6-9)
+5) CTA positions and copy
+6) Internal link ideas (3)
+7) Risk checks (YMYL, exaggeration, disclosure, official confirmation)

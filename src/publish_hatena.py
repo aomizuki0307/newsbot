@@ -25,7 +25,7 @@ NS_APP = "http://www.w3.org/2007/app"
 ET.register_namespace("", NS_ATOM)
 ET.register_namespace("app", NS_APP)
 
-_GENERIC_TITLES = {"導入", "本論", "まとめ", "はじめに", "結論"}
+_GENERIC_TITLES = {"導入", "本論", "まとめ", "はじめに", "結論", "目次"}
 
 
 def _default_title() -> str:

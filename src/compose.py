@@ -33,9 +33,28 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
         for point in summary['summary']:
             summaries_text += f"- {point}\n"
 
+    plan_text = ""
+    if _should_enable_stage("PLAN_ENABLED"):
+        plan_text = _build_plan(summaries, summaries_text, llm_client)
+
     system_prompt = load_prompt("compose/system")
     user_template = load_prompt("compose/user")
-    user_prompt = render_prompt(user_template, summaries=summaries_text)
+    user_prompt = render_prompt(
+        user_template,
+        summaries=summaries_text,
+        plan=plan_text or "（未実行）",
+        revenue_model=_env_or_default("REVENUE_MODEL", "AdSense"),
+        primary_query=_env_or_default("PRIMARY_QUERY", "未指定"),
+        related_queries=_env_or_default("RELATED_QUERIES", "未指定"),
+        funnel_stage=_env_or_default("FUNNEL_STAGE", "未指定"),
+        target_reader=_env_or_default("TARGET_READER", "未指定"),
+        goal_action=_env_or_default("GOAL_ACTION", "未指定"),
+        pr_disclosure=_env_or_default("PR_DISCLOSURE", "無"),
+        first_party_info=_env_or_default("FIRST_PARTY_INFO", "未指定"),
+        existing_urls=_env_or_default("EXISTING_URLS", "未指定"),
+        affiliate_categories=_env_or_default("AFFILIATE_CATEGORIES", "未指定"),
+        title_hint=_env_or_default("TITLE_HINT", "未指定"),
+    )
 
     try:
         logger.info("Composing unified article from summaries")
@@ -44,6 +63,8 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
 
         article = normalize_markdown_structure(article)
         article = _insert_series_links(article)
+
+        _run_final_check(article, llm_client)
 
         # Validate article length
         char_count = len(article)
@@ -57,6 +78,72 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
     except Exception as e:
         logger.error(f"Failed to compose article: {e}")
         raise
+
+
+def _env_or_default(key: str, default: str) -> str:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    value = value.strip()
+    return value if value else default
+
+
+def _should_enable_stage(env_name: str) -> bool:
+    raw = os.getenv(env_name)
+    if raw is None:
+        return os.getenv("PROMPT_VARIANT", "default").strip().lower() == "seo"
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _build_plan(
+    summaries: List[Dict[str, any]],
+    summaries_text: str,
+    llm_client: LLMClient,
+) -> str:
+    theme_candidates = "\n".join(
+        f"- {summary['title']}" for summary in summaries if summary.get("title")
+    )
+    plan_system = load_prompt("plan/system")
+    plan_user = load_prompt("plan/user")
+    plan_prompt = render_prompt(
+        plan_user,
+        revenue_model=_env_or_default("REVENUE_MODEL", "AdSense"),
+        theme_candidates=theme_candidates or "（なし）",
+        target_reader=_env_or_default("TARGET_READER", "未指定"),
+        first_party_info=_env_or_default("FIRST_PARTY_INFO", "未指定"),
+        existing_urls=_env_or_default("EXISTING_URLS", "未指定"),
+        affiliate_categories=_env_or_default("AFFILIATE_CATEGORIES", "未指定"),
+        summaries=summaries_text,
+    )
+    logger.info("Planning article outline and revenue flow")
+    return llm_client.generate(plan_system, plan_prompt, temperature=None)
+
+
+def _run_final_check(article: str, llm_client: LLMClient) -> None:
+    if not _should_enable_stage("FINAL_CHECK_ENABLED"):
+        return
+    review_system = load_prompt("review/system")
+    review_user = load_prompt("review/user")
+    review_prompt = render_prompt(
+        review_user,
+        article=article,
+        primary_query=_env_or_default("PRIMARY_QUERY", "未指定"),
+        revenue_model=_env_or_default("REVENUE_MODEL", "AdSense"),
+        goal_action=_env_or_default("GOAL_ACTION", "未指定"),
+    )
+    logger.info("Running final monetization check")
+    review_text = llm_client.generate(review_system, review_prompt, temperature=None)
+    review_path = os.getenv("FINAL_CHECK_PATH", os.path.join("out", "final_check.md"))
+    _save_text(review_text, review_path)
+
+
+def _save_text(content: str, output_file: str) -> None:
+    output_path = Path(output_file)
+    parent_dir = output_path.parent
+    if parent_dir and parent_dir != Path("."):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8") as handle:
+        handle.write(content)
 
 
 def _insert_series_links(article: str) -> str:

@@ -92,6 +92,7 @@ class LLMClient:
 
 def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[str, Any]:
     """Summarize a single article into 5 key points in Japanese."""
+    max_points = _summary_max_points()
     system_prompt = load_prompt("summarize/system")
     user_template = load_prompt("summarize/user")
     truncated_body = (article.get("text") or "")[:3000]
@@ -114,8 +115,8 @@ def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[st
             if cleaned and len(cleaned) > 10:
                 summary_points.append(cleaned)
 
-        # Ensure we have exactly 5 points
-        summary_points = summary_points[:5]
+        # Enforce a configurable upper bound
+        summary_points = summary_points[:max_points]
 
         if len(summary_points) < 3:
             logger.warning(f"Only {len(summary_points)} points extracted, using raw response")
@@ -130,6 +131,18 @@ def summarize_article(article: Dict[str, str], llm_client: LLMClient) -> Dict[st
     except Exception as e:
         logger.error(f"Failed to summarize article {article['url']}: {e}")
         raise
+
+
+def _summary_max_points() -> int:
+    """Return max summary points from env or default."""
+    raw = os.getenv("SUMMARY_MAX_POINTS", "").strip()
+    if not raw:
+        return 8
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return 8
+    return parsed if parsed > 0 else 8
 
 
 def summarize_articles(
