@@ -3,14 +3,16 @@
 Main entry point for the newsbot application.
 """
 
+import argparse
 import json
 import logging
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 from src.collect import ArticleCache, collect_articles
 from src.compose import compose_article, save_draft
@@ -59,9 +61,61 @@ def configure_logging():
         root_logger.addHandler(handler)
 
 
-load_dotenv()
-configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _apply_dotenv_values(
+    values: dict,
+    *,
+    override_keys: Optional[set[str]] = None,
+    override_all: bool = False,
+) -> None:
+    if not values:
+        return
+    override_keys = override_keys or set()
+    for key, value in values.items():
+        if value is None:
+            continue
+        if override_all or key in override_keys or key not in os.environ:
+            os.environ[key] = value
+
+
+def _load_dotenv_files(profile: Optional[str]) -> dict:
+    base_path = Path(".env")
+    base_values = dotenv_values(base_path) if base_path.exists() else {}
+    _apply_dotenv_values(base_values)
+
+    profile_loaded = False
+    profile_path = None
+    if profile:
+        os.environ.setdefault("NEWSBOT_PROFILE", profile)
+        os.environ.setdefault("PROMPT_VARIANT", profile)
+        profile_path = Path(f".env.{profile}")
+        if profile_path.exists():
+            override_all = os.getenv("NEWSBOT_DOTENV_OVERRIDE", "false").lower() == "true"
+            override_keys = set(base_values.keys())
+            profile_values = dotenv_values(profile_path)
+            _apply_dotenv_values(
+                profile_values,
+                override_keys=override_keys,
+                override_all=override_all,
+            )
+            profile_loaded = True
+
+    return {
+        "base_loaded": bool(base_values),
+        "profile_loaded": profile_loaded,
+        "profile_path": str(profile_path) if profile_path else None,
+    }
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="newsbot runner")
+    parser.add_argument(
+        "--profile",
+        help="Optional profile name (loads .env.<profile> and sets PROMPT_VARIANT)",
+    )
+    return parser.parse_args()
 
 
 def _parse_positive_int(env_name: str) -> Optional[int]:
@@ -143,6 +197,15 @@ def _emit_metrics(metrics: dict, start_time: float):
 
 def main():
     """Main execution flow"""
+    args = _parse_args()
+    env_info = _load_dotenv_files(args.profile)
+    configure_logging()
+
+    if args.profile:
+        logger.info("Profile selected: %s", args.profile)
+    if env_info["profile_path"] and not env_info["profile_loaded"]:
+        logger.info("Profile dotenv not found: %s", env_info["profile_path"])
+
     logger.info("=" * 60)
     logger.info("newsbot starting")
     logger.info("=" * 60)

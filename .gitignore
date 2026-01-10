@@ -34,6 +34,7 @@ rss_list.json
 # Output
 out/
 draft.md
+newsbot.log
 
 # IDE
 .vscode/
