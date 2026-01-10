@@ -92,6 +92,29 @@ def _extract_entry_url(response_text: str) -> Optional[str]:
     return None
 
 
+def _ensure_h1_title(article: str, title: str) -> str:
+    lines = article.splitlines()
+    first_idx = None
+    for idx, line in enumerate(lines):
+        if line.strip():
+            first_idx = idx
+            break
+    if first_idx is None:
+        return f"# {title}\n"
+
+    first_line = lines[first_idx].lstrip()
+    if first_line.startswith("# "):
+        current = first_line[2:].strip()
+        if current in _GENERIC_TITLES:
+            lines[first_idx] = f"# {title}"
+            return "\n".join(lines)
+        return article
+
+    lines.insert(first_idx, f"# {title}")
+    lines.insert(first_idx + 1, "")
+    return "\n".join(lines)
+
+
 def publish_to_hatena(
     article: str,
     *,
@@ -154,6 +177,8 @@ def publish_to_hatena(
         title = None
 
     publish_title = title or os.getenv("HATENA_TITLE") or _default_title()
+
+    article = _ensure_h1_title(article, publish_title)
 
     payload = _build_atom_entry(
         publish_title,

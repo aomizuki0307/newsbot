@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from src.summarize import LLMClient
+from src.utils.text_formatting import normalize_markdown_structure
 from .prompts import load_prompt, render_prompt
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,8 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
         logger.info("Composing unified article from summaries")
         # Some models (e.g., certain Mini tiers) do not allow non-default temperature.
         article = llm_client.generate(system_prompt, user_prompt, temperature=None)
+
+        article = normalize_markdown_structure(article)
 
         # Validate article length
         char_count = len(article)

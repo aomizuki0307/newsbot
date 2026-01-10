@@ -8,6 +8,8 @@ from typing import List
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?])")
 _LIST_PREFIX_RE = re.compile(r"^(?:[-*+]\s+|\d+\.|\d+\))")
+_SECTION_LABELS = {"導入", "本論", "まとめ", "はじめに", "結論"}
+_NUMBERED_HEADING_RE = re.compile(r"^\d+[.)]\s+\S")
 
 
 def _split_sentences(text: str) -> List[str]:
@@ -95,3 +97,48 @@ def format_markdown_paragraphs(text: str, sentences_per_paragraph: int = 2) -> s
 
     flush_buffer()
     return "\n".join(output)
+
+
+def normalize_markdown_structure(text: str) -> str:
+    """Normalize common heading patterns and spacing in Markdown output."""
+    if not text:
+        return text
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    output: List[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped in _SECTION_LABELS:
+            line = f"## {stripped}"
+        elif _NUMBERED_HEADING_RE.match(stripped):
+            line = f"### {stripped}"
+
+        is_heading = line.lstrip().startswith("#")
+        if is_heading:
+            if output and output[-1].strip():
+                output.append("")
+            output.append(line.strip())
+            output.append("")
+        else:
+            output.append(line)
+
+    collapsed: List[str] = []
+    prev_blank = False
+    for line in output:
+        blank = not line.strip()
+        if blank:
+            if not prev_blank:
+                collapsed.append("")
+            prev_blank = True
+        else:
+            collapsed.append(line)
+            prev_blank = False
+
+    while collapsed and not collapsed[0].strip():
+        collapsed.pop(0)
+    while collapsed and not collapsed[-1].strip():
+        collapsed.pop()
+
+    return "\n".join(collapsed)
