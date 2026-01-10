@@ -33,8 +33,9 @@ def load_prompt(prompt_name: str, variant: Optional[str] = None) -> str:
     """
     variant_key = _resolve_variant(variant)
     relative_path = Path(prompt_name)
-    candidate = PROMPTS_ROOT / relative_path / f"{variant_key}.txt"
-    fallback = PROMPTS_ROOT / relative_path / "default.txt"
+    prompt_key = "_".join(relative_path.parts)
+    candidate = PROMPTS_ROOT / variant_key / f"{variant_key}_{prompt_key}.txt"
+    fallback = PROMPTS_ROOT / "default" / f"default_{prompt_key}.txt"
 
     path = candidate if candidate.exists() else fallback
     if not path.exists():
