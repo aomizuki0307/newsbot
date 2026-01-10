@@ -69,8 +69,8 @@ def test_extract_image_url_with_syntax(mock_env):
         <hatena:syntax>[f:id:testuser:20240101120000j:image]</hatena:syntax>
     </entry>"""
 
-    result = uploader._extract_image_url(response_xml)
-    assert result == "[f:id:testuser:20240101120000j:image]"
+    result = uploader._extract_image_info(response_xml)
+    assert result["syntax"] == "[f:id:testuser:20240101120000j:image]"
 
 
 def test_extract_image_url_with_link(mock_env):
@@ -82,15 +82,15 @@ def test_extract_image_url_with_link(mock_env):
         <link rel="alternate" href="https://cdn.example.com/image.jpg" />
     </entry>"""
 
-    result = uploader._extract_image_url(response_xml)
-    assert result == "https://cdn.example.com/image.jpg"
+    result = uploader._extract_image_info(response_xml)
+    assert result["url"] == "https://cdn.example.com/image.jpg"
 
 
 def test_extract_image_url_invalid_xml(mock_env):
     """Test handling of invalid XML response"""
     uploader = HatenaFotolifeUploader()
 
-    result = uploader._extract_image_url("invalid xml")
+    result = uploader._extract_image_info("invalid xml")
     assert result is None
 
 
@@ -111,7 +111,7 @@ def test_upload_success(mock_post, mock_env):
 
     result = uploader.upload_image(image_data, "test.jpg", "Test Image")
 
-    assert result == "[f:id:testuser:20240101120000j:image]"
+    assert result["syntax"] == "[f:id:testuser:20240101120000j:image]"
     assert mock_post.called
 
 

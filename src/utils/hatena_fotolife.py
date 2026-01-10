@@ -90,36 +90,43 @@ class HatenaFotolifeUploader:
 
         return ET.tostring(entry, encoding="utf-8", xml_declaration=True)
 
-    def _extract_image_url(self, response_text: str) -> Optional[str]:
-        """Extract image URL from Fotolife response
+    def _extract_image_info(self, response_text: str) -> Optional[dict]:
+        """Extract image syntax and URL from Fotolife response
 
         Args:
             response_text: XML response from Fotolife
 
         Returns:
-            Image syntax for Hatena Blog or None
+            Dict with syntax/url or None
         """
         try:
             root = ET.fromstring(response_text)
+
+            syntax_value = None
+            url_value = None
 
             # Look for hatena:syntax element (contains the [f:id:...] syntax)
             hatena_ns = "http://www.hatena.ne.jp/info/xmlns#"
             syntax_el = root.find(f".//{{{hatena_ns}}}syntax")
 
             if syntax_el is not None and syntax_el.text:
-                logger.info(f"Fotolife image syntax: {syntax_el.text}")
-                return syntax_el.text
+                syntax_value = syntax_el.text
+                logger.info(f"Fotolife image syntax: {syntax_value}")
 
             # Fallback: extract from link rel="alternate"
             for link in root.findall(f"{{{NS_ATOM}}}link"):
                 if link.attrib.get("rel") == "alternate":
                     href = link.attrib.get("href")
                     if href:
-                        logger.info(f"Fotolife image URL: {href}")
-                        return href
+                        url_value = href
+                        logger.info(f"Fotolife image URL: {url_value}")
+                        break
 
-            logger.warning("Could not extract image URL from Fotolife response")
-            return None
+            if not syntax_value and not url_value:
+                logger.warning("Could not extract image info from Fotolife response")
+                return None
+
+            return {"syntax": syntax_value, "url": url_value}
 
         except ET.ParseError as e:
             logger.error(f"Failed to parse Fotolife response: {e}")
@@ -141,8 +148,7 @@ class HatenaFotolifeUploader:
             timeout: Request timeout in seconds
 
         Returns:
-            Hatena Blog image syntax (e.g., [f:id:username:20240101120000j:image])
-            or None on failure
+            Dict with syntax/url or None on failure
         """
         if not all([self.consumer_key, self.consumer_secret, self.access_token, self.access_token_secret]):
             logger.error("Cannot upload to Fotolife - OAuth credentials missing")
@@ -181,15 +187,15 @@ class HatenaFotolifeUploader:
 
             response.raise_for_status()
 
-            # Extract image syntax from response
-            image_syntax = self._extract_image_url(response.text)
+            # Extract image info from response
+            image_info = self._extract_image_info(response.text)
 
-            if image_syntax:
-                logger.info(f"Image uploaded successfully: {image_syntax}")
-                return image_syntax
-            else:
-                logger.warning("Upload succeeded but could not extract image URL")
-                return None
+            if image_info:
+                logger.info(f"Image uploaded successfully: {image_info}")
+                return image_info
+
+            logger.warning("Upload succeeded but could not extract image info")
+            return None
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to upload to Hatena Fotolife: {e}")

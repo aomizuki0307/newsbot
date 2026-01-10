@@ -15,6 +15,7 @@ from src.utils.image_fetcher import UnsplashImageFetcher, translate_keywords_for
 from src.utils.hatena_fotolife import HatenaFotolifeUploader
 from src.utils.title_extractor import extract_title
 from src.utils.text_formatting import format_markdown_paragraphs
+from src.utils.markdown_render import render_markdown_to_html
 
 logger = logging.getLogger(__name__)
 
@@ -159,15 +160,15 @@ def publish_to_hatena(
     if article:
         article = article.replace("\r\n", "\n").replace("\r", "\n")
 
+    force_html = _bool_from_env(os.getenv("HATENA_FORCE_HTML"))
     format_paragraphs = _bool_from_env(os.getenv("HATENA_FORMAT_PARAGRAPHS", "true"))
     if format_paragraphs:
         try:
             sentences = int(os.getenv("HATENA_PARAGRAPH_SENTENCES", "2") or "2")
         except ValueError:
             sentences = 2
-        if content_type.lower().startswith("text/x-markdown") or content_type.lower().startswith("text/markdown"):
-            article = format_markdown_paragraphs(article, sentences_per_paragraph=sentences)
-            logger.info("Applied markdown paragraph formatting: %s sentences/paragraph", sentences)
+        article = format_markdown_paragraphs(article, sentences_per_paragraph=sentences)
+        logger.info("Applied markdown paragraph formatting: %s sentences/paragraph", sentences)
 
     # Extract title from article content if not provided
     if title is None:
@@ -179,6 +180,11 @@ def publish_to_hatena(
     publish_title = title or os.getenv("HATENA_TITLE") or _default_title()
 
     article = _ensure_h1_title(article, publish_title)
+
+    if force_html or content_type.lower().startswith("text/html"):
+        article = render_markdown_to_html(article)
+        content_type = "text/html"
+        logger.info("Rendered article as HTML for Hatena")
 
     payload = _build_atom_entry(
         publish_title,
@@ -234,6 +240,10 @@ def publish_to_hatena_with_image(
     Returns:
         Dictionary with published URL and response
     """
+    target_content_type = (content_type or os.getenv("HATENA_CONTENT_TYPE") or "text/x-markdown").strip().lower()
+    force_html = _bool_from_env(os.getenv("HATENA_FORCE_HTML"))
+    use_html = force_html or target_content_type.startswith("text/html")
+
     # Extract title if not provided
     if title is None:
         title = extract_title(article, default="newsbot")
@@ -264,27 +274,47 @@ def publish_to_hatena_with_image(
             fotolife = HatenaFotolifeUploader()
             filename = f"{search_query.replace(' ', '_')}.jpg"
 
-            image_syntax = fotolife.upload_image(
+            image_info = fotolife.upload_image(
                 image_file,
                 filename,
                 title=f"{title} - Featured Image"
             )
 
-            if image_syntax:
+            if image_info:
                 logger.info(f"Featured image uploaded: {image_metadata['photographer']}")
+                image_syntax = image_info.get("syntax")
+                image_url = image_info.get("url")
 
-                # Embed image in article (Hatena syntax)
-                # Insert after first heading or at the beginning
-                image_credit = f"\n\n{image_syntax}\n\n*Photo by {image_metadata['photographer']} on Unsplash*\n\n"
+                if use_html and image_url:
+                    image_credit = f"Photo by {image_metadata['photographer']} on Unsplash"
+                    image_credit_block = (
+                        f"<figure>"
+                        f"<img src=\"{image_url}\" alt=\"{title}\"/>"
+                        f"<figcaption>{image_credit}</figcaption>"
+                        f"</figure>\n"
+                    )
+                else:
+                    if image_syntax:
+                        image_credit_block = (
+                            f"\n\n{image_syntax}\n\n"
+                            f"*Photo by {image_metadata['photographer']} on Unsplash*\n\n"
+                        )
+                    elif image_url:
+                        image_credit_block = (
+                            f"\n\n![{title}]({image_url})\n\n"
+                            f"*Photo by {image_metadata['photographer']} on Unsplash*\n\n"
+                        )
+                    else:
+                        image_credit_block = ""
 
                 # Find insertion point (after first <h2> or at start)
                 if '<h2>' in article:
                     # Insert after first </h2>
                     parts = article.split('</h2>', 1)
-                    article_with_image = parts[0] + '</h2>' + image_credit + (parts[1] if len(parts) > 1 else '')
+                    article_with_image = parts[0] + '</h2>' + image_credit_block + (parts[1] if len(parts) > 1 else '')
                 else:
                     # Insert at beginning
-                    article_with_image = image_credit + article
+                    article_with_image = image_credit_block + article
 
                 logger.info("Image embedded in article content")
             else:
