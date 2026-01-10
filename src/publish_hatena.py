@@ -118,17 +118,25 @@ def _ensure_h1_title(article: str, title: str) -> str:
 
 def _strip_leading_h1(article: str) -> str:
     lines = article.splitlines()
-    first_idx = None
-    for idx, line in enumerate(lines):
-        if line.strip():
-            first_idx = idx
-            break
-    if first_idx is None:
+    if not lines:
         return article
-    if lines[first_idx].lstrip().startswith("# "):
-        del lines[first_idx]
-        if first_idx < len(lines) and not lines[first_idx].strip():
-            del lines[first_idx]
+
+    in_code_block = False
+    removed = False
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block or removed:
+            continue
+        if line.lstrip().startswith("# "):
+            del lines[idx]
+            if idx < len(lines) and not lines[idx].strip():
+                del lines[idx]
+            removed = True
+            break
+
     # Trim leading blank lines
     while lines and not lines[0].strip():
         lines.pop(0)

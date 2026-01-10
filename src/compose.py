@@ -54,6 +54,11 @@ def compose_article(summaries: List[Dict[str, any]], provider: str = "openai") -
         existing_urls=_env_or_default("EXISTING_URLS", "未指定"),
         affiliate_categories=_env_or_default("AFFILIATE_CATEGORIES", "未指定"),
         title_hint=_env_or_default("TITLE_HINT", "未指定"),
+        cta_weak_text=_env_optional("CTA_WEAK_TEXT"),
+        cta_weak_url=_env_optional("CTA_WEAK_URL"),
+        cta_strong_text=_env_optional("CTA_STRONG_TEXT"),
+        cta_strong_url=_env_optional("CTA_STRONG_URL"),
+        internal_links=_format_internal_links(_env_optional("INTERNAL_LINKS")),
     )
 
     try:
@@ -86,6 +91,28 @@ def _env_or_default(key: str, default: str) -> str:
         return default
     value = value.strip()
     return value if value else default
+
+
+def _env_optional(key: str) -> str:
+    value = os.getenv(key)
+    if value is None:
+        return ""
+    return value.strip()
+
+
+def _format_internal_links(raw: str) -> str:
+    if not raw:
+        return ""
+    parts = [part.strip() for part in raw.split(";") if part.strip()]
+    lines = []
+    for part in parts:
+        if "|" in part:
+            title, url = [seg.strip() for seg in part.split("|", 1)]
+            if title and url:
+                lines.append(f"{title}：{url}")
+                continue
+        lines.append(part)
+    return "\n".join(lines)
 
 
 def _should_enable_stage(env_name: str) -> bool:
