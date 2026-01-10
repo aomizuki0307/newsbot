@@ -116,6 +116,25 @@ def _ensure_h1_title(article: str, title: str) -> str:
     return "\n".join(lines)
 
 
+def _strip_leading_h1(article: str) -> str:
+    lines = article.splitlines()
+    first_idx = None
+    for idx, line in enumerate(lines):
+        if line.strip():
+            first_idx = idx
+            break
+    if first_idx is None:
+        return article
+    if lines[first_idx].lstrip().startswith("# "):
+        del lines[first_idx]
+        if first_idx < len(lines) and not lines[first_idx].strip():
+            del lines[first_idx]
+    # Trim leading blank lines
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    return "\n".join(lines)
+
+
 def publish_to_hatena(
     article: str,
     *,
@@ -179,7 +198,11 @@ def publish_to_hatena(
 
     publish_title = title or os.getenv("HATENA_TITLE") or _default_title()
 
-    article = _ensure_h1_title(article, publish_title)
+    strip_h1 = _bool_from_env(os.getenv("HATENA_STRIP_H1", "true"))
+    if strip_h1:
+        article = _strip_leading_h1(article)
+    else:
+        article = _ensure_h1_title(article, publish_title)
 
     if force_html or content_type.lower().startswith("text/html"):
         article = render_markdown_to_html(article)

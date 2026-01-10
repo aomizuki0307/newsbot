@@ -61,6 +61,7 @@ jobs:
         HATENA_ATOM_ENDPOINT=${{ secrets.HATENA_ATOM_ENDPOINT }}
         HATENA_CONTENT_TYPE=${{ secrets.HATENA_CONTENT_TYPE || 'text/html' }}
         HATENA_FORCE_HTML=${{ secrets.HATENA_FORCE_HTML || 'true' }}
+        HATENA_STRIP_H1=${{ secrets.HATENA_STRIP_H1 || 'true' }}
         HATENA_FORMAT_PARAGRAPHS=${{ secrets.HATENA_FORMAT_PARAGRAPHS || 'true' }}
         HATENA_PARAGRAPH_SENTENCES=${{ secrets.HATENA_PARAGRAPH_SENTENCES || '2' }}
         HATENA_CATEGORIES=${{ secrets.HATENA_CATEGORIES }}
