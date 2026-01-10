@@ -10,6 +10,8 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?])")
 _LIST_PREFIX_RE = re.compile(r"^(?:[-*+]\s+|\d+\.|\d+\))")
 _SECTION_LABELS = {"導入", "本論", "まとめ", "はじめに", "結論"}
 _NUMBERED_HEADING_RE = re.compile(r"^\d+[.)]\s+\S")
+_HORIZONTAL_RULE_RE = re.compile(r"^\s*([-*_])\1\1+\s*$")
+_CHECKLIST_INLINE_RE = re.compile(r"(.*?チェックリスト[^-]*)(-\s*\[\s*\].*)")
 
 
 def _split_sentences(text: str) -> List[str]:
@@ -110,6 +112,18 @@ def normalize_markdown_structure(text: str) -> str:
 
     for line in lines:
         stripped = line.strip()
+        if _HORIZONTAL_RULE_RE.match(stripped):
+            continue
+
+        checklist_match = _CHECKLIST_INLINE_RE.match(stripped)
+        if checklist_match and not stripped.lstrip().startswith("- ["):
+            heading = checklist_match.group(1).strip()
+            checklist = checklist_match.group(2).strip()
+            output.append(heading)
+            output.append("")
+            output.append(checklist)
+            continue
+
         if stripped in _SECTION_LABELS:
             line = f"## {stripped}"
         elif _NUMBERED_HEADING_RE.match(stripped):
